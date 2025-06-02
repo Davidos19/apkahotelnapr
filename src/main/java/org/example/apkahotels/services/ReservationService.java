@@ -1,207 +1,237 @@
+
 package org.example.apkahotels.services;
 
-import org.example.apkahotels.exceptions.HotelNotAvailableException;
-import org.example.apkahotels.exceptions.InvalidReservationDateException;
+import org.example.apkahotels.models.AppUser;
 import org.example.apkahotels.models.Hotel;
 import org.example.apkahotels.models.Reservation;
+import org.example.apkahotels.models.Room;
 import org.example.apkahotels.repositories.HotelRepository;
 import org.example.apkahotels.repositories.ReservationRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.example.apkahotels.repositories.UserRepository;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 
-
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.Map;
 import java.util.stream.Collectors;
 
-import static java.time.temporal.ChronoUnit.DAYS;
-
 @Service
+@Transactional
 public class ReservationService {
-    private static final Logger logger = LoggerFactory.getLogger(ReservationService.class);
-
-    // Możesz usunąć lokalną listę, jeśli korzystasz z repository:
-    // private List<Reservation> reservations = new ArrayList<>();
 
     private final HotelRepository hotelRepository;
     private final ReservationRepository reservationRepository;
     private final UserService userService;
+    private final RoomService roomService;
+    private final UserRepository userRepository;
 
-    // Konstruktor bez wstrzykiwania samego siebie
-    public ReservationService(HotelRepository hotelRepository, ReservationRepository reservationRepository, UserService userService) {
+    public ReservationService(HotelRepository hotelRepository,
+                              ReservationRepository reservationRepository,
+                              UserService userService,
+                              RoomService roomService,
+                              UserRepository userRepository) {
         this.hotelRepository = hotelRepository;
         this.reservationRepository = reservationRepository;
         this.userService = userService;
-
+        this.roomService = roomService;
+        this.userRepository = userRepository;
     }
 
+
+    // ===== METODY HOTELI =====
     public List<Hotel> getAllHotels() {
-        return hotelRepository.getAllHotels();
+        return hotelRepository.findAll(); // JPA standardowa metoda
     }
 
     public Hotel getHotelById(Long id) {
-        return hotelRepository.getHotelById(id);
+        return hotelRepository.findById(id).orElse(null); // JPA standardowa metoda
     }
 
-    public Reservation getReservationById(Long id) {
-        return reservationRepository.getReservationById(id);
-    }
-
-    public List<Reservation> getAllReservations() {
-        return reservationRepository.getAllReservations();
+    public Map<Long, Hotel> getHotelsByIds(Set<Long> hotelIds) {
+        return hotelRepository.findAllById(hotelIds)
+                .stream()
+                .collect(Collectors.toMap(Hotel::getId, hotel -> hotel));
     }
 
     public List<Hotel> searchHotels(String keyword) {
-        if (keyword == null || keyword.trim().isEmpty()) {
-            return hotelRepository.getAllHotels();
-        }
-        String lowerKeyword = keyword.toLowerCase();
-        return hotelRepository.getAllHotels().stream()
-                .filter(hotel -> hotel.getName().toLowerCase().contains(lowerKeyword)
-                        || hotel.getLocation().toLowerCase().contains(lowerKeyword))
-                .collect(Collectors.toList());
+        return hotelRepository.searchByKeyword(keyword);
     }
-
-    public void cancelReservation(Long id) {
-        Reservation reservation = reservationRepository.getReservationById(id);
-        if (reservation != null) {
-            Hotel hotel = hotelRepository.getHotelById(reservation.getHotelId());
-            if (hotel != null) {
-                hotel.setAvailableRooms(hotel.getAvailableRooms() + 1);
-            }
-            reservationRepository.removeReservation(id);
-        } else {
-            throw new RuntimeException("Rezerwacja o ID: " + id + " nie została znaleziona!");
-        }
-    }
-
-
-    public void makeReservation(Reservation reservation) {
-        logger.info("Próba utworzenia rezerwacji dla hotelu id: {}", reservation.getHotelId());
+    public long getReservationCountByHotelId(Long hotelId) {
         try {
-            String username = SecurityContextHolder.getContext().getAuthentication().getName();
-            if (reservation.getUsername() == null || reservation.getUsername().trim().isEmpty()) {
-                reservation.setUsername(userService.getCurrentUser().getUsername());
-            }
-        } catch (Exception ex) {
-            logger.error("Błąd przy tworzeniu rezerwacji: {}", ex.getMessage());
-            throw ex;
+            return reservationRepository.countReservationsByHotelId(hotelId);
+        } catch (Exception e) {
+            System.err.println("Błąd przy liczeniu rezerwacji dla hotelu " + hotelId + ": " + e.getMessage());
+            return 0;
+        }
+    }
+
+
+    // ===== METODY REZERWACJI =====
+    public Reservation getReservationById(Long id) {
+        return reservationRepository.findById(id).orElse(null); // JPA standardowa metoda
+    }
+
+    public List<Reservation> getAllReservations() {
+        return reservationRepository.findAll(); // JPA standardowa metoda
+    }
+
+    public void cancelReservation(Long reservationId) {
+        Optional<Reservation> reservation = reservationRepository.findById(reservationId);
+        if (reservation.isPresent()) {
+            reservationRepository.deleteById(reservationId); // JPA standardowa metoda
+        } else {
+            throw new RuntimeException("Rezerwacja nie została znaleziona");
+        }
+    }
+    public void makeReservation(Reservation reservation) {
+        // Walidacja
+        if (reservation.getCheckIn() == null || reservation.getCheckOut() == null) {
+            throw new RuntimeException("Daty przyjazdu i wyjazdu są wymagane");
         }
 
         if (reservation.getCheckIn().isAfter(reservation.getCheckOut())) {
-            throw new InvalidReservationDateException("Data przyjazdu musi być przed datą wyjazdu!");
+            throw new RuntimeException("Data wyjazdu musi być po dacie przyjazdu");
         }
+
         if (reservation.getCheckIn().isBefore(LocalDate.now())) {
-            throw new InvalidReservationDateException("Data przyjazdu nie może być w przeszłości!");
+            throw new RuntimeException("Data przyjazdu nie może być w przeszłości");
         }
 
-        // Nowa weryfikacja dostępności pokoju pod kątem kolidujących rezerwacji
-        if (!isRoomAvailable(reservation)) {
-            throw new RuntimeException("Wybrany pokój jest już zarezerwowany w wybranym terminie!");
+        // Pobierz aktualnego użytkownika
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+            reservation.setUsername(auth.getName());
         }
 
-        Hotel hotel = hotelRepository.getHotelById(reservation.getHotelId());
-        if (hotel != null && hotel.getAvailableRooms() > 0) {
-            hotel.setAvailableRooms(hotel.getAvailableRooms() - 1);
-            reservationRepository.addReservation(reservation);
-        } else {
-            throw new HotelNotAvailableException("Brak dostępnych pokoi!");
-        }
-    }
-
-    @Transactional
-    public void updateReservation(Reservation updatedReservation) {
-        Reservation existing = reservationRepository.getReservationById(updatedReservation.getId());
-        if (existing == null) {
-            throw new RuntimeException("Rezerwacja nie znaleziona!");
-        }
-        // Walidacja dat
-        if (updatedReservation.getCheckIn().isAfter(updatedReservation.getCheckOut())) {
-            throw new RuntimeException("Nieprawidłowy zakres dat!");
-        }
-        if (updatedReservation.getCheckIn().isBefore(LocalDate.now())) {
-            throw new RuntimeException("Data przyjazdu w przeszłości!");
-        }
-
-        // Obliczamy liczbę dni przed i po zmianie
-        long oldDays = ChronoUnit.DAYS.between(existing.getCheckIn(), existing.getCheckOut());
-        long newDays = ChronoUnit.DAYS.between(
-                updatedReservation.getCheckIn(),
-                updatedReservation.getCheckOut()
-        );
-
-        // Korygujemy dostępność w hotelu
-        Hotel hotel = hotelRepository.getHotelById(existing.getHotelId());
-        if (hotel != null) {
-            // zwolnij poprzednie dni
-            hotel.setAvailableRooms(hotel.getAvailableRooms() + (int)oldDays);
-            // zarezerwuj nowe dni (sprawdź dostępność)
-            if (hotel.getAvailableRooms() < newDays) {
-                throw new RuntimeException("Brak dostępnych pokoi na nowe daty!");
+        // DODAJ OBLICZANIE CENY
+        if (reservation.getRoomId() != null) {
+            Room room = roomService.getRoomById(reservation.getRoomId());
+            if (room != null) {
+                reservation.calculateTotalPrice(room.getPrice());
             }
-            hotel.setAvailableRooms(hotel.getAvailableRooms() - (int)newDays);
         }
 
-        // Zaktualizuj pola rezerwacji
-        existing.setCheckIn(updatedReservation.getCheckIn());
-        existing.setCheckOut(updatedReservation.getCheckOut());
-        existing.setRoomId(updatedReservation.getRoomId());
-        // w Twoim in‐memory repo nie trzeba save – mutujesz pobrany obiekt
+        // Sprawdź dostępność pokoju typu (zamiast konkretnego pokoju)
+        if (reservation.getRoomId() != null) {
+            Room selectedRoom = roomService.getRoomById(reservation.getRoomId());
+            if (selectedRoom != null) {
+                // Sprawdź czy jest dostępny pokój tego typu w wybranych datach
+                List<Room> availableRooms = roomService.getAvailableRoomsByTypeAndDates(
+                        selectedRoom.getHotelId(),
+                        selectedRoom.getRoomType(),
+                        selectedRoom.getCapacity(),
+                        reservation.getCheckIn(),
+                        reservation.getCheckOut()
+                );
+
+                if (availableRooms.isEmpty()) {
+                    throw new RuntimeException("Brak dostępnych pokoi tego typu w wybranych datach");
+                }
+
+                // Przypisz pierwszy dostępny pokój
+                reservation.setRoomId(availableRooms.get(0).getId());
+            }
+        }
+
+        // Ustaw daty startDate i endDate dla kompatybilności
+        reservation.setStartDate(reservation.getCheckIn());
+        reservation.setEndDate(reservation.getCheckOut());
+
+        reservation.setCreatedAt(LocalDateTime.now());
+        reservationRepository.save(reservation);
     }
 
+    public void updateReservation(Reservation reservation) {
+        if (!reservationRepository.existsById(reservation.getId())) {
+            throw new RuntimeException("Rezerwacja nie została znaleziona");
+        }
 
+        // Ustaw daty dla kompatybilności
+        reservation.setStartDate(reservation.getCheckIn());
+        reservation.setEndDate(reservation.getCheckOut());
 
-    private boolean isRoomAvailable(Reservation newReservation) {
-        return reservationRepository.getAllReservations().stream()
-                // Zakładam, że używasz pola roomId – jeśli jest to inna właściwość identyfikująca dany pokój, zmień to odpowiednio
-                .filter(existing -> existing.getRoomId().equals(newReservation.getRoomId()))
-                // Warunek sprawdzający kolizję przedziałów czasowych:
-                // Nowa rezerwacja koliduje z istniejącą, jeżeli jej data checkIn jest przed końcem istniejącej rezerwacji
-                // oraz jej data checkOut jest po początku istniejącej rezerwacji
-                .noneMatch(existing -> newReservation.getCheckIn().isBefore(existing.getCheckOut())
-                        && newReservation.getCheckOut().isAfter(existing.getCheckIn()));
+        reservationRepository.save(reservation); // JPA standardowa metoda
+    }
+
+    public boolean isRoomAvailable(Long roomId, LocalDate checkIn, LocalDate checkOut, Long excludeReservationId) {
+        List<Reservation> conflicting = reservationRepository.findConflictingReservations(roomId, checkIn, checkOut);
+
+        // Wykluczamy bieżącą rezerwację (przy edycji)
+        if (excludeReservationId != null) {
+            conflicting = conflicting.stream()
+                    .filter(r -> !r.getId().equals(excludeReservationId))
+                    .collect(Collectors.toList());
+        }
+
+        return conflicting.isEmpty();
     }
 
     public List<Reservation> getUserReservations() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return reservationRepository.getAllReservations().stream()
-                .filter(r -> username.equals(r.getUsername()))
-                .collect(Collectors.toList());
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+            String username = auth.getName();
+            return reservationRepository.findByUsernameOrderByCheckInDesc(username);
+        }
+        return List.of();
     }
 
     public List<Reservation> getAllReservationsForAdmin() {
-        return reservationRepository.getAllReservations();
+        return reservationRepository.findAll(); // JPA standardowa metoda
     }
 
     public List<Reservation> getReservationsByHotelId(Long hotelId) {
-        return reservationRepository.getAllReservations().stream()
-                .filter(reservation -> reservation.getHotelId().equals(hotelId))
-                .collect(Collectors.toList());
+        return reservationRepository.findByHotelIdOrderByCheckInDesc(hotelId);
     }
 
     public List<Reservation> getUserReservationsByDate(LocalDate date) {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return reservationRepository.findByUsername(username).stream()
-                .filter(r -> r.getCheckIn().equals(date) || r.getCheckOut().equals(date))
-                .collect(Collectors.toList());
-    }
-    public void deleteReservation(Long reservationId) {
-        Reservation reservation = reservationRepository.getReservationById(reservationId);
-        if (reservation != null) {
-            reservationRepository.removeReservation(reservationId);
-
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+            String username = auth.getName();
+            return reservationRepository.findByUsernameOrderByCheckInDesc(username)
+                    .stream()
+                    .filter(r -> r.getCheckIn().equals(date))
+                    .collect(Collectors.toList());
         }
+        return List.of();
+    }
 
-
+    public void deleteReservation(Long reservationId) {
+        reservationRepository.deleteById(reservationId); // JPA standardowa metoda
     }
 
     public List<Reservation> getReservationsByUsername(String username) {
-        return reservationRepository.findByUsername(username);
+        return reservationRepository.findByUsernameOrderByCheckInDesc(username);
+    }
+
+    // ===== NOWE METODY DLA ADMINA =====
+    public long getTotalReservations() {
+        try {
+            return reservationRepository.count();
+        } catch (Exception e) {
+            System.err.println("Błąd przy liczeniu wszystkich rezerwacji: " + e.getMessage());
+            return 0;
+        }
+    }
+
+    public List<Reservation> getRecentReservations(int limit) {
+        return reservationRepository.findAll()
+                .stream()
+                .sorted((r1, r2) -> r2.getCheckIn().compareTo(r1.getCheckIn()))
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+    public List<Reservation> getReservationsByUserId(Long userId) {
+        AppUser user = userRepository.findById(userId).orElse(null);
+        if (user != null) {
+            return reservationRepository.findByUsernameOrderByCheckInDesc(user.getUsername());
+        }
+        return List.of();
     }
 
 }

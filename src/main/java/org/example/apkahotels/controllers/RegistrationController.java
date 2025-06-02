@@ -43,36 +43,43 @@ public class RegistrationController {
     @PostMapping("/register")
     public String registerUser(@ModelAttribute("user") @Valid RegistrationForm form,
                                BindingResult br, Model model) {
-        if (br.hasErrors() || !form.getPassword().equals(form.getConfirmPassword())) {
-            if (!form.getPassword().equals(form.getConfirmPassword())) {
-                model.addAttribute("error", "Hasła nie są zgodne");
-            }
+        // Walidacja podstawowa
+        if (br.hasErrors()) {
             return "register";
         }
+
+        // Sprawdź zgodność haseł
+        if (!form.getPassword().equals(form.getConfirmPassword())) {
+            model.addAttribute("error", "Hasła nie są zgodne");
+            return "register";
+        }
+
+        // Sprawdź czy użytkownik już istnieje (wystarczy jedna z metod)
         if (userDetailsManager.userExists(form.getUsername())) {
             model.addAttribute("error", "Użytkownik o tej nazwie już istnieje");
             return "register";
         }
 
-        // 1) Zarejestruj domenowego użytkownika w UserService
-        AppUser domain = new AppUser();
-        domain.setUsername(form.getUsername());
-        domain.setPassword(passwordEncoder.encode(form.getPassword()));
-        domain.setEmail(form.getEmail());
-        domain.setFirstName(form.getFirstName());
-        domain.setLastName(form.getLastName());
-        domain.setPhoneNumber(form.getPhoneNumber());
-        domain.setProfileImageUrl(null);
-        userService.registerUser(domain);           // ← tu zamiast userRepo.save(...)
+        try {
+            // Utwórz obiekt AppUser z danymi z formularza
+            AppUser newUser = new AppUser();
+            newUser.setUsername(form.getUsername());
+            newUser.setPassword(form.getPassword()); // RAW hasło - zostanie zakodowane w UserService
+            newUser.setEmail(form.getEmail());
+            newUser.setFirstName(form.getFirstName());
+            newUser.setLastName(form.getLastName());
+            newUser.setPhoneNumber(form.getPhoneNumber());
+            newUser.setProfileImageUrl(null);
 
-        // 2) Dodaj w Spring Security
-        UserDetails secUser = User.builder()
-                .username(domain.getUsername())
-                .password(domain.getPassword())
-                .roles("USER")
-                .build();
-        userDetailsManager.createUser(secUser);
+            // Zarejestruj użytkownika (UserService zajmie się kodowaniem hasła i dodaniem do Spring Security)
+            userService.registerUser(newUser);
 
-        return "redirect:/login?registered=true";
+            return "redirect:/login?registered=true";
+
+        } catch (Exception e) {
+            model.addAttribute("error", "Błąd rejestracji: " + e.getMessage());
+            return "register";
+        }
     }
+
 }

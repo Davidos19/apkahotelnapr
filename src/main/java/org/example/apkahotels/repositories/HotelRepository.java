@@ -1,56 +1,25 @@
 package org.example.apkahotels.repositories;
 
 import org.example.apkahotels.models.Hotel;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
-public class HotelRepository {
-    private List<Hotel> hotels = new ArrayList<>();
-    private Long currentId = 1L;
+public interface HotelRepository extends JpaRepository<Hotel, Long> {
 
-    public HotelRepository() {
-        hotels = new ArrayList<>();
-        hotels.add(new Hotel(currentId++, "Hotel Kraków", "Kraków", 10));
-        hotels.add(new Hotel(currentId++, "Hotel Warszawa", "Warszawa", 5));
-        hotels.add(new Hotel(currentId++, "Hotel Wieliczka", "Wieliczka", 14));
-        hotels.add(new Hotel(currentId++, "Hotel Gdansk", "Gdansk", 7));
-        hotels.add(new Hotel(currentId++, "Hotel Wroclaw", "Wroclaw", 18));
-        hotels.add(new Hotel(currentId++, "Hotel Bochnia", "Bochnia", 3));
-    }
+    List<Hotel> findByNameContainingIgnoreCase(String name);
 
-    public List<Hotel> getAllHotels() {
-        return hotels;
-    }
+    List<Hotel> findByCityContainingIgnoreCase(String city);
 
-    public Optional<Hotel> getHotelByIdOptional(Long id) {
-        return hotels.stream().filter(h -> h.getId().equals(id)).findFirst();
-    }
+    @Query("SELECT h FROM Hotel h WHERE " +
+            "LOWER(h.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "LOWER(h.city) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "LOWER(h.description) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    List<Hotel> searchByKeyword(@Param("keyword") String keyword);
 
-    public void addHotel(Hotel hotel) {
-        hotel.setId(currentId++);
-        hotels.add(hotel);
-    }
-
-    public void updateHotel(Hotel updatedHotel) {
-        getHotelByIdOptional(updatedHotel.getId()).ifPresent(existingHotel -> {
-            existingHotel.setName(updatedHotel.getName());
-            existingHotel.setLocation(updatedHotel.getLocation());
-            existingHotel.setAvailableRooms(updatedHotel.getAvailableRooms());
-        });
-    }
-
-    public void deleteHotel(Long id) {
-        hotels.removeIf(h -> h.getId().equals(id));
-    }
-    public Hotel getHotelById(Long id) {
-        return hotels.stream()
-                .filter(hotel -> hotel.getId().equals(id))
-                .findFirst()
-                .orElse(null);
-    }
-
+    List<Hotel> findByStarsGreaterThanEqual(String stars);
 }

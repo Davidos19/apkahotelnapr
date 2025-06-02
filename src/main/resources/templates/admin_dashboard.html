@@ -1,45 +1,130 @@
+
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <title>Dashboard Administracyjny</title>
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <style>
+    .stat-card {
+      transition: transform 0.2s;
+    }
+    .stat-card:hover {
+      transform: translateY(-5px);
+    }
+  </style>
 </head>
 <body>
 <div th:replace="~{fragments/nav :: nav}"></div>
 
 <div class="container mt-4">
-  <h1>Dashboard Administracyjny</h1>
-  <div class="row">
-    <div class="col-md-4">
-      <div class="card text-white bg-primary mb-3">
-        <div class="card-body">
-          <h5 class="card-title">Liczba rezerwacji</h5>
-          <p class="card-text" th:text="${stats.totalReservations}">0</p>
+  <h1 class="mb-4">🏨 Dashboard Administracyjny</h1>
+
+  <!-- Komunikaty błędów -->
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <span th:text="${error}"></span>
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+  </div>
+
+  <!-- Główne statystyki -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card text-white bg-primary mb-3 stat-card">
+        <div class="card-body text-center">
+          <h5 class="card-title">📋 Rezerwacje</h5>
+          <h2 class="card-text" th:text="${stats != null ? stats.totalReservations : 0}">0</h2>
+          <small>Wszystkich</small>
         </div>
       </div>
     </div>
-    <div class="col-md-4">
-      <div class="card text-white bg-success mb-3">
-        <div class="card-body">
-          <h5 class="card-title">Liczba hoteli</h5>
-          <p class="card-text" th:text="${stats.totalHotels}">0</p>
+    <div class="col-md-3">
+      <div class="card text-white bg-success mb-3 stat-card">
+        <div class="card-body text-center">
+          <h5 class="card-title">🏨 Hotele</h5>
+          <h2 class="card-text" th:text="${stats != null ? stats.totalHotels : 0}">0</h2>
+          <small>W systemie</small>
         </div>
       </div>
     </div>
-    <div class="col-md-4">
-      <div class="card text-white bg-info mb-3">
-        <div class="card-body">
-          <h5 class="card-title">Dostępne pokoje</h5>
-          <p class="card-text" th:text="${stats.totalAvailableRooms}">0</p>
+    <div class="col-md-3">
+      <div class="card text-white bg-info mb-3 stat-card">
+        <div class="card-body text-center">
+          <h5 class="card-title">🛏️ Pokoje</h5>
+          <h2 class="card-text" th:text="${stats != null ? stats.totalRooms : 0}">0</h2>
+          <small>Dostępnych</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-white bg-warning mb-3 stat-card">
+        <div class="card-body text-center">
+          <h5 class="card-title">📅 Dzisiaj</h5>
+          <h2 class="card-text" th:text="${stats != null ? stats.todayReservations : 0}">0</h2>
+          <small>Rezerwacji</small>
         </div>
       </div>
     </div>
   </div>
-  <a class="btn btn-secondary" th:href="@{/admin/hotels}">Przejdź do zarządzania hotelami</a>
+
+  <!-- Dodatkowe statystyki -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5>📊 Statystyki miesięczne</h5>
+        </div>
+        <div class="card-body">
+          <p>Rezerwacje w tym miesiącu: <strong th:text="${stats != null ? stats.thisMonthReservations : 0}">0</strong></p>
+          <div class="progress">
+            <div class="progress-bar" role="progressbar"
+                 th:style="'width: ' + ((${stats != null and stats.totalReservations > 0} ? ${stats.thisMonthReservations * 100 / stats.totalReservations} : 0)) + '%'"
+                 th:text="${stats != null ? stats.thisMonthReservations : 0}">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5>🚀 Szybkie akcje</h5>
+        </div>
+        <div class="card-body">
+          <a class="btn btn-primary btn-block mb-2" th:href="@{/admin/hotels}">
+            🏨 Zarządzaj hotelami
+          </a>
+          <a class="btn btn-success btn-block mb-2" th:href="@{/admin/hotels/new}">
+            ➕ Dodaj nowy hotel
+          </a>
+          <a class="btn btn-info btn-block mb-2" th:href="@{/admin/hotels/users}">
+            👥 Zarządzaj użytkownikami
+          </a>
+          <!-- POPRAWIONY LINK DO REZERWACJI -->
+          <a class="btn btn-warning btn-block" th:href="@{/admin/reservations}">
+            📋 Zobacz wszystkie rezerwacje
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ostatnie aktywności -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h5>🕒 Ostatnia aktywność</h5>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">System działa poprawnie.</p>
+          <small class="text-muted">Wszystkie funkcje administracyjne są dostępne powyżej.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
+
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

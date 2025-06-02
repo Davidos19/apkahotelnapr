@@ -1,10 +1,10 @@
 package org.example.apkahotels.controllers;
 
-import lombok.Getter;
 import org.example.apkahotels.models.Reservation;
 import org.example.apkahotels.services.ReservationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
@@ -21,14 +21,21 @@ public class ReservationCalendarController {
         this.reservationService = reservationService;
     }
 
-    // Endpoint zwracający rezerwacje w formacie przyjaznym dla kalendarza
     @GetMapping("/calendar")
-    public List<ReservationEvent> getReservationEvents() {
-        List<Reservation> reservations = reservationService.getAllReservations();
+    public List<ReservationEvent> getReservationEvents(@RequestParam(required = false) Long hotelId) {
+        List<Reservation> reservations;
+
+        if (hotelId != null) {
+            reservations = reservationService.getReservationsByHotelId(hotelId);
+        } else {
+            reservations = reservationService.getAllReservations();
+        }
+
         return reservations.stream()
                 .map(reservation -> new ReservationEvent(
                         reservation.getId(),
-                        "Pokój " + reservation.getRoomId(), // Możesz zmodyfikować tytuł, np. dodać nazwę hotelu
+                        "Pokój " + (reservation.getRoomId() != null ? reservation.getRoomId() : "N/A")
+                                + " - " + reservation.getUsername(),
                         reservation.getCheckIn(),
                         reservation.getCheckOut()
                 ))
@@ -36,7 +43,6 @@ public class ReservationCalendarController {
     }
 }
 
-@Getter
 class ReservationEvent {
     private final Long id;
     private final String title;
@@ -46,9 +52,13 @@ class ReservationEvent {
     public ReservationEvent(Long id, String title, LocalDate checkIn, LocalDate checkOut) {
         this.id = id;
         this.title = title;
-        // Format ISO-8601, akceptowany przez FullCalendar
         this.start = checkIn.toString();
         this.end = checkOut.toString();
     }
 
+    // Gettery (bez Lomboka)
+    public Long getId() { return id; }
+    public String getTitle() { return title; }
+    public String getStart() { return start; }
+    public String getEnd() { return end; }
 }

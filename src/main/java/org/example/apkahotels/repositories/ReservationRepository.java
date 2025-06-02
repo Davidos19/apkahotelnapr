@@ -1,50 +1,46 @@
+
 package org.example.apkahotels.repositories;
 
 import org.example.apkahotels.models.Reservation;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.ArrayList;
+import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Repository
-public class ReservationRepository {
-    private List<Reservation> reservations = new ArrayList<>();
-    private Long currentId = 1L;
+public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
+    // ===== NAPRAWIONE ZAPYTANIE =====
+    @Query("SELECT r FROM Reservation r WHERE r.roomId = :roomId AND " +
+            "((r.checkIn <= :checkOut AND r.checkOut >= :checkIn))")
+    List<Reservation> findConflictingReservations(@Param("roomId") Long roomId,
+                                                  @Param("checkIn") LocalDate checkIn,
+                                                  @Param("checkOut") LocalDate checkOut);
 
-    public List<Reservation> getAllReservations() {
-        return reservations;
-    }
+    // Podstawowe zapytania
+    List<Reservation> findByUsernameOrderByCheckInDesc(String username);
 
-    public void addReservation(Reservation reservation) {
-        reservation.setId(currentId++);
-        reservations.add(reservation);
-    }
-    public Reservation getReservationById(Long id) {
-        return reservations.stream()
-                .filter(r -> r.getId().equals(id))
-                .findFirst()
-                .orElse(null);
-    }
+    List<Reservation> findByHotelIdOrderByCheckInDesc(Long hotelId);
 
-    public void removeReservation(Long id) {
-        reservations.removeIf(r -> r.getId().equals(id));
-    }
-    public List<Reservation> findByUsername(String username) {
-        return reservations.stream()
-                .filter(r -> r.getUsername() != null && r.getUsername().equals(username))
-                .collect(Collectors.toList());
-    }
-    public boolean isRoomAvailable(Reservation newReservation) {
-        return reservations.stream()
-                // filtrowanie po tym samym pokoju – tutaj zakładamy, że metoda getRoom() zwraca identyfikator pokoju lub obiekt, który ma poprawnie zaimplementowany equals()
-                .filter(existing -> existing.getRoom().equals(newReservation.getRoom()))
-                // sprawdzenie, czy przedziały czasowe nakładają się
-                .noneMatch(existing ->
-                        newReservation.getStartDate().isBefore(existing.getEndDate()) &&
-                                newReservation.getEndDate().isAfter(existing.getStartDate())
-                );
-    }
+    List<Reservation> findByCheckInBetween(LocalDate startDate, LocalDate endDate);
 
+    // ===== DODAJ TĘ METODĘ =====
+    @Query("SELECT r FROM Reservation r WHERE r.hotelId = :hotelId AND " +
+            "r.checkIn <= :endDate AND r.checkOut >= :startDate")
+    List<Reservation> findReservationsInDateRange(@Param("hotelId") Long hotelId,
+                                                  @Param("startDate") LocalDate startDate,
+                                                  @Param("endDate") LocalDate endDate);
+
+    // Zapytania pomocnicze dla administratora
+    @Query("SELECT r FROM Reservation r WHERE r.checkIn >= :date ORDER BY r.checkIn ASC")
+    List<Reservation> findUpcomingReservations(@Param("date") LocalDate date);
+
+    @Query("SELECT r FROM Reservation r WHERE r.checkIn = :date")
+    List<Reservation> findReservationsByDate(@Param("date") LocalDate date);
+
+    @Query("SELECT COUNT(r) FROM Reservation r WHERE r.hotelId = :hotelId")
+    long countReservationsByHotelId(@Param("hotelId") Long hotelId);
 }

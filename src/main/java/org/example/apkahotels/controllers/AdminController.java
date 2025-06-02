@@ -1,43 +1,208 @@
 package org.example.apkahotels.controllers;
 
-import org.example.apkahotels.models.Hotel;
-import org.example.apkahotels.models.Reservation;
-import org.example.apkahotels.models.Room;
-import org.example.apkahotels.services.HotelService;
-import org.example.apkahotels.services.ReservationService;
-import org.example.apkahotels.services.RoomService;
+import org.example.apkahotels.models.*;
+import org.example.apkahotels.services.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
+
 
 @Controller
 @RequestMapping("/admin/hotels")
 public class AdminController {
 
-    private final HotelService hotelService;
+    private final UserService userService;
     private final ReservationService reservationService;
+    private final HotelService hotelService;
     private final RoomService roomService;
+    private final ReviewService reviewService;
 
-    public AdminController(HotelService hotelService, ReservationService reservationService, RoomService roomService) {
-        this.hotelService = hotelService;
+
+    public AdminController(UserService userService,
+                           ReservationService reservationService,
+                           HotelService hotelService,
+                           RoomService roomService,
+                           ReviewService reviewService) {
+        this.userService = userService;
         this.reservationService = reservationService;
+        this.hotelService = hotelService;
         this.roomService = roomService;
+        this.reviewService = reviewService;
     }
+
+    @GetMapping("/dashboard")
+    public String adminDashboard(Model model) {
+        try {
+            // Utwórz obiekt stats zgodny z template
+            Map<String, Object> stats = new HashMap<>();
+
+            // Podstawowe statystyki
+            stats.put("totalHotels", hotelService.getAllHotels().size());
+            stats.put("totalReservations", reservationService.getAllReservationsForAdmin().size());
+
+            // Pokoje
+            List<Room> allRooms = new ArrayList<>();
+            for (Hotel hotel : hotelService.getAllHotels()) {
+                allRooms.addAll(roomService.getRoomsByHotelId(hotel.getId()));
+            }
+            stats.put("totalRooms", allRooms.size());
+
+            // Rezerwacje dzisiaj
+            LocalDate today = LocalDate.now();
+            long todayReservations = reservationService.getAllReservationsForAdmin()
+                    .stream()
+                    .filter(r -> r.getCheckIn().equals(today))
+                    .count();
+            stats.put("todayReservations", todayReservations);
+
+            // Rezerwacje w tym miesiącu
+            LocalDate startOfMonth = today.withDayOfMonth(1);
+            LocalDate endOfMonth = today.withDayOfMonth(today.lengthOfMonth());
+            long thisMonthReservations = reservationService.getAllReservationsForAdmin()
+                    .stream()
+                    .filter(r -> !r.getCheckIn().isBefore(startOfMonth) && !r.getCheckIn().isAfter(endOfMonth))
+                    .count();
+            stats.put("thisMonthReservations", thisMonthReservations);
+
+            // Dodaj obiekt stats do modelu
+            model.addAttribute("stats", stats);
+
+            // Zwróć odpowiednią nazwę template
+            return "admin_dashboard"; // BEZ folderu admin/
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            model.addAttribute("error", "Błąd przy ładowaniu dashboardu: " + e.getMessage());
+            return "admin_dashboard";
+        }
+    }
+
+    @GetMapping("/users")
+    public String listUsers(Model model) {
+        try {
+            List<AppUser> users = userService.getAllUsers();
+            model.addAttribute("users", users);
+            model.addAttribute("userRoles", UserRole.values());
+            return "admin/users"; // Szukaj template admin/users.html
+        } catch (Exception e) {
+            e.printStackTrace();
+            model.addAttribute("error", "Błąd przy ładowaniu użytkowników: " + e.getMessage());
+            return "admin/dashboard";
+        }
+    }
+
+    @PostMapping("/users/{id}/role")
+    public String changeUserRole(@PathVariable Long id,
+                                 @RequestParam UserRole newRole,
+                                 RedirectAttributes redirectAttributes) {
+        try {
+            userService.changeUserRole(id, newRole);
+            redirectAttributes.addFlashAttribute("message",
+                    "Rola użytkownika została zmieniona na: " + newRole.getDescription());
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd: " + e.getMessage());
+        }
+        return "redirect:/admin/hotels/users";
+    }
+
+    @PostMapping("/users/{id}/toggle-active")
+    public String toggleUserActive(@PathVariable Long id,
+                                   RedirectAttributes redirectAttributes) {
+        try {
+            AppUser user = userService.getUserById(id);
+            user.setActive(!user.isActive());
+            userService.saveUser(user);
+
+            String status = user.isActive() ? "aktywowany" : "dezaktywowany";
+            redirectAttributes.addFlashAttribute("message",
+                    "Użytkownik został " + status);
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd: " + e.getMessage());
+        }
+        return "redirect:/admin/hotels/users";
+    }
+
+    @PostMapping("/users/{id}/reset-password")
+    public String resetUserPassword(@PathVariable Long id,
+                                    RedirectAttributes redirectAttributes) {
+        try {
+            String newPassword = userService.resetUserPassword(id);
+            redirectAttributes.addFlashAttribute("message",
+                    "Hasło zostało zresetowane. Nowe hasło: " + newPassword);
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd: " + e.getMessage());
+        }
+        return "redirect:/admin/hotels/users";
+    }
+
+    @GetMapping("/users/{id}/details")
+    public String getUserDetails(@PathVariable Long id, Model model) {
+        try {
+            AppUser user = userService.getUserById(id);
+            // Użyj username zamiast userId
+            List<Reservation> userReservations = reservationService.getReservationsByUsername(user.getUsername());
+
+            model.addAttribute("user", user);
+            model.addAttribute("userReservations", userReservations);
+            model.addAttribute("userRoles", UserRole.values());
+
+            return "admin/user_details";
+        } catch (Exception e) {
+            return "redirect:/admin/hotels/users";
+        }
+    }
+
+
 
     // Wyświetlenie listy hoteli dla administratora
-    @GetMapping
-    public String listHotels(@RequestParam(required = false) String sort, Model model) {
-        System.out.println("Sort parameter: " + sort);
-        List<Hotel> hotels = hotelService.getAllHotelsSorted(sort);
-        model.addAttribute("hotels", hotels);
-        model.addAttribute("sort", sort);
-        return "admin_hotels";
+
+    @GetMapping("") // To obsłuży "/admin/hotels"
+    public String listHotels(Model model) {
+        try {
+            // Pobierz wszystkie hotele
+            List<Hotel> hotels = hotelService.getAllHotels();
+
+            // Dodaj liczbę pokoi dla każdego hotelu
+            for (Hotel hotel : hotels) {
+                List<Room> hotelRooms = roomService.getRoomsByHotelId(hotel.getId());
+                hotel.setAvailableRooms(hotelRooms.size());
+            }
+
+            // Statystyki
+            model.addAttribute("hotels", hotels);
+            model.addAttribute("totalHotels", hotels.size());
+
+            // Policz pokoje
+            int totalRooms = 0;
+            for (Hotel hotel : hotels) {
+                totalRooms += roomService.getRoomsByHotelId(hotel.getId()).size();
+            }
+            model.addAttribute("totalRooms", totalRooms);
+
+            // Policz rezerwacje
+            model.addAttribute("totalReservations", reservationService.getAllReservationsForAdmin().size());
+
+            return "admin_hotels";
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            model.addAttribute("error", "Błąd przy ładowaniu hoteli: " + e.getMessage());
+            model.addAttribute("hotels", new ArrayList<>());
+            model.addAttribute("totalHotels", 0);
+            model.addAttribute("totalRooms", 0);
+            model.addAttribute("totalReservations", 0);
+            return "admin_hotels";
+        }
     }
+
+
+
+
     @GetMapping("/admin/reservations")
     public String listReservations(Model model) {
         List<Reservation> reservations = reservationService.getAllReservationsForAdmin();

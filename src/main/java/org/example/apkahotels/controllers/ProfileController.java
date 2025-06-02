@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,7 +90,19 @@ public class ProfileController {
         return "profile";  // widok Thymeleaf (np. profile.html)
     }
 
-
+    @GetMapping("/my-reservations") // lub podobny endpoint
+    public String myReservations(Model model, Principal principal) {
+        try {
+            String username = principal.getName();
+            List<Reservation> reservations = reservationService.getReservationsByUsername(username);
+            model.addAttribute("reservations", reservations);
+            return "my_reservations";
+        } catch (Exception e) {
+            e.printStackTrace();
+            model.addAttribute("error", "Błąd przy ładowaniu rezerwacji: " + e.getMessage());
+            return "index";
+        }
+    }
 
     // Zmiana hasła
     @PostMapping("/profile/update")

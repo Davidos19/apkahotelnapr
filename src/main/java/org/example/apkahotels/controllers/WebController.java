@@ -1,9 +1,7 @@
 package org.example.apkahotels.controllers;
 
-
-//import ch.qos.logback.core.model.Model;
-
 import jakarta.validation.Valid;
+import org.example.apkahotels.dto.RoomTypeStatsDTO;
 import org.example.apkahotels.models.Hotel;
 import org.example.apkahotels.models.Reservation;
 import org.example.apkahotels.models.Review;
@@ -14,6 +12,7 @@ import org.example.apkahotels.services.ReviewService;
 import org.example.apkahotels.services.RoomService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -21,93 +20,188 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
+
+
 
 @Controller
 public class WebController {
     private static final Logger logger = LoggerFactory.getLogger(WebController.class);
     private final ReservationService reservationService;
-    private final ReviewService reviewService;  // dodaj to pole
+    private final ReviewService reviewService;
     private final HotelService hotelService;
     private final RoomService roomService;
 
-    public WebController(HotelService hotelService, ReservationService reservationService, ReviewService reviewService, RoomService roomService) {
+
+    public WebController(HotelService hotelService, ReservationService reservationService,
+                         ReviewService reviewService, RoomService roomService) {
         this.hotelService = hotelService;
         this.reservationService = reservationService;
-        this.reviewService = reviewService;// wstrzyknięcie zależności
+        this.reviewService = reviewService;
         this.roomService = roomService;
+
     }
 
     @GetMapping("/")
-    public String showHomePage(Model model) {
-        // 1. Dodaj do modelu listę hoteli do sekcji "Dostępne Hotele"
-        List<Hotel> hotels = hotelService.getAllHotels();
-        model.addAttribute("hotels", hotels);
+    public String showHomePage(Model model,
+                               @RequestParam(required = false) String checkIn,
+                               @RequestParam(required = false) String checkOut) {
 
-        // 2. Dodaj pusty obiekt rezerwacji do formularza "Dodaj Rezerwację"
-        model.addAttribute("reservation", new Reservation());
+        LocalDate checkInDate = parseDate(checkIn);
+        LocalDate checkOutDate = parseDate(checkOut);
 
-        // 3. Pobierz rezerwacje zalogowanego użytkownika
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        List<Reservation> reservations = reservationService.getReservationsByUsername(username);
-
-        // 4. Zbuduj mapy:
-        //    hotelDetails (hotelId -> obiekt Hotel)
-        //    roomDetails (roomId -> obiekt Room)
-        Map<Long, Hotel> hotelDetails = new HashMap<>();
-        Map<Long, Room> roomDetails = new HashMap<>();
-
-        for (Reservation res : reservations) {
-            // Hotel
-            if (res.getHotelId() != null) {
-                Hotel hotel = hotelService.getHotelById(res.getHotelId());
-                if (hotel != null) {
-                    hotelDetails.put(res.getHotelId(), hotel);
-                }
-            }
-            // Pokój
-            if (res.getRoomId() != null) {
-                Room room = roomService.getRoomById(res.getRoomId());
-                if (room != null) {
-                    roomDetails.put(res.getRoomId(), room);
-                }
-            }
+        // Pobierz hotele z dostępnością dla podanych dat
+        List<Hotel> hotels;
+        if (checkInDate != null && checkOutDate != null) {
+            hotels = hotelService.getAllHotelsWithAvailability(checkInDate, checkOutDate);
+        } else {
+            // Jeśli nie ma dat, pokaż dla dzisiaj + 1 dzień
+            LocalDate today = LocalDate.now();
+            LocalDate tomorrow = today.plusDays(1);
+            hotels = hotelService.getAllHotelsWithAvailability(today, tomorrow);
         }
 
-        // 5. Dodaj rezerwacje i mapy do modelu
-        model.addAttribute("reservations", reservations);
-        model.addAttribute("hotelDetails", hotelDetails);
-        model.addAttribute("roomDetails", roomDetails);
+        model.addAttribute("hotels", hotels);
+        model.addAttribute("reservation", new Reservation());
+        model.addAttribute("checkIn", checkIn);
+        model.addAttribute("checkOut", checkOut);
 
-        // Zwróć nazwę widoku
-        return "index"; // index.html
+        // Dodaj rezerwacje użytkownika
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (!"anonymousUser".equals(username)) {
+            model.addAttribute("reservations", reservationService.getReservationsByUsername(username));
+        }
+
+        return "index";
     }
 
-    // Obsługa wysłania formularza rezerwacji (POST)
-    @PostMapping("/reservation")
-    public String createReservation(@Valid @ModelAttribute("reservation") Reservation reservation,
-                                    BindingResult bindingResult,
-                                    RedirectAttributes redirectAttributes,
-                                    Model model) {
-        if (bindingResult.hasErrors()) {
-            // W przypadku błędów walidacji musimy ponownie doładować dane potrzebne do formularza
-            model.addAttribute("hotels", reservationService.getAllHotels());
-            model.addAttribute("reservations", reservationService.getAllReservations());
-            return "index";  // Powrót do widoku głównego z komunikatami błędów
+    // ===== POPRAWIONY CONTROLLER DLA SZCZEGÓŁÓW HOTELU =====
+    @GetMapping({"/hotel/{id}", "/hotels/{id}"})
+    public String hotelDetails(@PathVariable Long id,
+                               @RequestParam(required = false) String checkIn,
+                               @RequestParam(required = false) String checkOut,
+                               Model model) {
+
+        logger.info("Dostęp do hotelu ID: {}", id);
+
+        Hotel hotel = hotelService.getHotelById(id);
+        if (hotel == null) {
+            logger.warn("Hotel o ID {} nie istnieje", id);
+            return "redirect:/";
+        }
+
+        LocalDate checkInDate = parseDate(checkIn);
+        LocalDate checkOutDate = parseDate(checkOut);
+
+        if (checkInDate == null || checkOutDate == null) {
+            checkInDate = LocalDate.now();
+            checkOutDate = LocalDate.now().plusDays(1);
         }
 
         try {
-            reservationService.makeReservation(reservation);
-            redirectAttributes.addFlashAttribute("message", "Rezerwacja udana!");
-        } catch (RuntimeException e) {
-            redirectAttributes.addFlashAttribute("error", "Błąd przy rezerwacji: " + e.getMessage());
+            // NAJPIERW SPRÓBUJ STARĄ METODĘ (która na pewno istnieje)
+            List<RoomService.RoomTypeAvailability> roomTypesAvailability = roomService.getRoomTypesWithAvailability(id, checkInDate, checkOutDate);
+
+            // Policz całkowitą dostępność
+            int totalAvailable = roomTypesAvailability.stream()
+                    .mapToInt(RoomService.RoomTypeAvailability::getAvailableCount)
+                    .sum();
+
+            hotel.setAvailableRooms(totalAvailable);
+
+            // WAŻNE: Użyj tej samej nazwy co w HTML
+            model.addAttribute("roomTypesWithAvailability", roomTypesAvailability);
+            model.addAttribute("checkIn", checkInDate);
+            model.addAttribute("checkOut", checkOutDate);
+
+            logger.debug("Załadowano {} typów pokoi, {} dostępnych łącznie", roomTypesAvailability.size(), totalAvailable);
+
+        } catch (Exception e) {
+            logger.error("Błąd podczas ładowania pokoi dla hotelu {}: {}", id, e.getMessage(), e);
+            model.addAttribute("roomTypesWithAvailability", new ArrayList<>());
+            model.addAttribute("error", "Błąd podczas ładowania pokoi");
+            hotel.setAvailableRooms(0);
         }
-        return "redirect:/";
+
+        // Pobierz recenzje
+        try {
+            model.addAttribute("reviews", reviewService.getReviewsForHotel(id));
+            model.addAttribute("averageRating", reviewService.getAverageRating(id));
+        } catch (Exception e) {
+            logger.warn("Błąd podczas pobierania recenzji: {}", e.getMessage());
+            model.addAttribute("reviews", new ArrayList<>());
+            model.addAttribute("averageRating", 0.0);
+        }
+
+        model.addAttribute("hotel", hotel);
+        model.addAttribute("reservation", new Reservation());
+
+        return "hotel_details";
     }
 
 
+    @PostMapping("/reservation")
+    public String makeReservation(@ModelAttribute Reservation reservation,
+                                  @RequestParam(required = false) Long hotelId,
+                                  @RequestParam(required = false) String roomType,
+                                  @RequestParam(required = false) Integer capacity,
+                                  @RequestParam(required = false) String checkIn,
+                                  @RequestParam(required = false) String checkOut,
+                                  RedirectAttributes redirectAttributes) {
+
+        try {
+            // Walidacja danych wejściowych
+            validateReservationInput(hotelId, roomType, capacity, checkIn, checkOut);
+
+            // Parsuj daty
+            LocalDate checkInDate = LocalDate.parse(checkIn);
+            LocalDate checkOutDate = LocalDate.parse(checkOut);
+
+            // UŻYJ ZOPTYMALIZOWANEJ METODY
+            Room assignedRoom = roomService.assignAvailableRoomOfTypeOptimized(hotelId, roomType, capacity, checkInDate, checkOutDate);
+
+            // Skonfiguruj rezerwację
+            reservation.setHotelId(hotelId);
+            reservation.setRoomId(assignedRoom.getId());
+            reservation.setCheckIn(checkInDate);
+            reservation.setCheckOut(checkOutDate);
+            reservation.setUsername(getCurrentUsername());
+
+            // Zapisz rezerwację
+            reservationService.makeReservation(reservation);
+
+            redirectAttributes.addFlashAttribute("message",
+                    String.format("Rezerwacja pokoju %s (%s) została utworzona! Koszt: %s zł",
+                            assignedRoom.getRoomNumber(), roomType + " " + capacity + " os.",
+                            reservation.getTotalPrice()));
+
+            return "redirect:/myReservations";
+
+        } catch (Exception e) {
+            logger.error("Błąd rezerwacji: {}", e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Błąd: " + e.getMessage());
+            return "redirect:/hotels/" + hotelId;
+        }
+    }
+
+    // Metody pomocnicze
+    private void validateReservationInput(Long hotelId, String roomType, Integer capacity, String checkIn, String checkOut) {
+        if (hotelId == null) throw new RuntimeException("Hotel nie został wybrany");
+        if (roomType == null || roomType.trim().isEmpty()) throw new RuntimeException("Typ pokoju nie został wybrany");
+        if (capacity == null) throw new RuntimeException("Pojemność pokoju nie została określona");
+        if (checkIn == null || checkIn.trim().isEmpty()) throw new RuntimeException("Data przyjazdu jest wymagana");
+        if (checkOut == null || checkOut.trim().isEmpty()) throw new RuntimeException("Data wyjazdu jest wymagana");
+    }
+
+    private String getCurrentUsername() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        if ("anonymousUser".equals(username)) {
+            throw new RuntimeException("Musisz być zalogowany aby dokonać rezerwacji");
+        }
+        return username;
+    }
     @PostMapping("/cancelReservation")
     public String cancelReservation(@RequestParam("reservationId") Long reservationId,
                                     RedirectAttributes redirectAttributes) {
@@ -119,66 +213,30 @@ public class WebController {
         }
         return "redirect:/";
     }
-    @GetMapping("/hotel/{id}")
-    public String hotelDetails(@PathVariable Long id, Model model, RedirectAttributes redirectAttributes) {
-        Hotel hotel = reservationService.getHotelById(id);
-        if (hotel == null) {
-            redirectAttributes.addFlashAttribute("error", "Hotel o podanym ID nie został znaleziony!");
-            return "redirect:/";
-        }
-        // Pobierz recenzje i średnią ocenę (opcjonalnie)
-        double averageRating = reviewService.getAverageRating(id);
-        List<Review> reviews = reviewService.getReviewsForHotel(id);
-
-        // Pobierz pokoje
-        List<Room> rooms = roomService.getRoomsByHotelId(id);
-
-        model.addAttribute("hotel", hotel);
-        model.addAttribute("averageRating", averageRating);
-        model.addAttribute("reviews", reviews);
-        model.addAttribute("rooms", rooms);
-
-        // Jeśli chcesz formularz recenzji:
-        model.addAttribute("review", new Review());
-
-        return "hotel_details"; // nazwa szablonu
-    }
 
     @GetMapping("/reservation/edit/{id}")
     public String editReservation(@PathVariable Long id, Model model) {
-        // Pobierz istniejącą rezerwację
         Reservation reservation = reservationService.getReservationById(id);
         if (reservation == null) {
-            // Jeśli rezerwacja nie istnieje – przekieruj np. na stronę główną
             return "redirect:/";
         }
-        // Dodaj rezerwację do modelu
         model.addAttribute("reservation", reservation);
-
-        // Pobierz listę dostępnych pokoi dla hotelu rezerwacji
         List<Room> rooms = roomService.getRoomsByHotelId(reservation.getHotelId());
         model.addAttribute("rooms", rooms);
-
-        return "edit_reservation"; // widok edycji rezerwacji
+        return "edit_reservation";
     }
-
 
     @PostMapping("/reservation/update")
     public String updateReservation(@ModelAttribute("reservation") Reservation updatedRes) {
-        // 1. Wywołaj serwis, aby zaktualizować dane rezerwacji
         reservationService.updateReservation(updatedRes);
-
-        // 2. Przekieruj np. na stronę główną
         return "redirect:/";
     }
 
     @GetMapping("/search")
     public String searchHotels(@RequestParam("keyword") String keyword, Model model) {
         model.addAttribute("hotels", reservationService.searchHotels(keyword));
-        // Dodajemy też pozostałe atrybuty potrzebne w widoku – rezerwacje oraz pusty obiekt rezerwacji
         model.addAttribute("reservations", reservationService.getAllReservations());
         model.addAttribute("reservation", new Reservation());
-        // Przekazujemy również aktualną frazę wyszukiwania, żeby np. umieścić ją w polu formularza
         model.addAttribute("keyword", keyword);
         return "index";
     }
@@ -189,5 +247,15 @@ public class WebController {
         return "my_reservations";
     }
 
-
+    private LocalDate parseDate(String dateStr) {
+        if (dateStr == null || dateStr.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(dateStr);
+        } catch (Exception e) {
+            logger.warn("Nie można sparsować daty: {}", dateStr);
+            return null;
+        }
+    }
 }

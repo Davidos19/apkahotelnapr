@@ -3,60 +3,115 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <title>Panel Administracyjny – Zarządzanie Hotelami</title>
-  <!-- Użycie motywu Bootswatch (Cosmo) -->
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/cosmo/bootstrap.min.css">
-  <!-- Własny arkusz stylów, opcjonalnie -->
-  <link rel="stylesheet" th:href="@{/css/custom.css}">
+  <title>Zarządzanie Hotelami - Admin</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
-<!-- Wstawienie wspólnego paska nawigacyjnego -->
 <div th:replace="~{fragments/nav :: nav}"></div>
 
 <div class="container mt-4">
-  <h1>Panel Administracyjny – Zarządzanie Hotelami</h1>
+  <h1>🏨 Zarządzanie Hotelami</h1>
 
-  <!-- Linki sortujące -->
-  <div class="mb-3">
-    <a th:href="@{/admin/hotels(sort='name')}" class="btn btn-outline-primary">Sortuj po nazwie</a>
-    <a th:href="@{/admin/hotels(sort='location')}" class="btn btn-outline-secondary">Sortuj po lokalizacji</a>
-    <a th:href="@{/admin/hotels}" class="btn btn-outline-info">Wyczyść sortowanie</a>
+  <!-- Błędy -->
+  <div th:if="${error}" class="alert alert-danger">
+    <h4>❌ Błąd!</h4>
+    <p th:text="${error}">Błąd</p>
   </div>
 
-  <a class="btn btn-primary mb-3" th:href="@{/admin/hotels/new}">Dodaj nowy hotel</a>
+  <!-- Test danych -->
+  <div class="alert alert-info">
+    <strong>Debug:</strong>
+    Hotels = <span th:text="${hotels != null ? 'Lista z ' + #lists.size(hotels) + ' elementami' : 'NULL'}">test</span>
+  </div>
 
-  <!-- Prezentacja hoteli w formie kart -->
-  <div class="row">
-    <div class="col-md-4 mb-3" th:each="hotel : ${hotels}" th:if="${hotel != null}">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title" th:text="${hotel.name}">Nazwa hotelu</h5>
-          <h6 class="card-subtitle mb-2 text-muted" th:text="${hotel.location}">Lokalizacja</h6>
-          <p class="card-text">
-            Dostępne pokoje: <span th:text="${hotel.availableRooms}">0</span>
-          </p>
-          <a th:href="@{'/admin/hotels/edit/' + ${hotel.id}}"
-             class="btn btn-warning btn-sm">Edytuj</a>
-          <a th:href="@{'/admin/hotels/delete/' + ${hotel.id}}"
-             class="btn btn-danger btn-sm"
-             onclick="return confirm('Czy na pewno usunąć ten hotel?')">Usuń</a>
-          <a th:href="@{'/admin/hotels/' + ${hotel.id} + '/reservations'}"
-             class="btn btn-info btn-sm">Rezerwacje</a>
+  <!-- Sprawdź czy hotels nie jest null -->
+  <div th:if="${hotels != null}">
+    <!-- Statystyki - PODSTAWOWE -->
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <div class="card bg-primary text-white">
+          <div class="card-body text-center">
+            <h5>Wszystkie hotele</h5>
+            <h2 th:text="${#lists.size(hotels)}">0</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card bg-success text-white">
+          <div class="card-body text-center">
+            <h5>Pokoje</h5>
+            <h2 th:text="${totalRooms} ?: '?'">?</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card bg-info text-white">
+          <div class="card-body text-center">
+            <h5>Rezerwacje</h5>
+            <h2 th:text="${totalReservations} ?: '?'">?</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista hoteli - BARDZO PODSTAWOWA -->
+    <div class="card">
+      <div class="card-header">
+        <h3>Lista hoteli</h3>
+      </div>
+      <div class="card-body">
+        <!-- Sprawdź czy lista nie jest pusta -->
+        <div th:if="${#lists.isEmpty(hotels)}" class="alert alert-warning">
+          <h4>🏨 Lista hoteli jest pusta!</h4>
+          <p>Nie ma żadnych hoteli w systemie</p>
+        </div>
+
+        <!-- Pokaż hotele jeśli istnieją -->
+        <div th:if="${!#lists.isEmpty(hotels)}">
+          <p><strong>Znaleziono <span th:text="${#lists.size(hotels)}">0</span> hoteli:</strong></p>
+
+          <!-- PODSTAWOWA TABELA -->
+          <table class="table table-striped">
+            <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nazwa</th>
+              <th>Miasto</th>
+              <th>Pokoje</th>
+              <th>Akcje</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="hotel : ${hotels}">
+              <td th:text="${hotel.id}">ID</td>
+              <td th:text="${hotel.name}">Nazwa</td>
+              <td th:text="${hotel.city}">Miasto</td>
+              <td th:text="${hotel.availableRooms} ?: '?'">?</td>
+              <td>
+                <a th:href="@{/admin/hotels/edit/{id}(id=${hotel.id})}" class="btn btn-sm btn-warning">Edytuj</a>
+                <a th:href="@{/hotel/{id}(id=${hotel.id})}" class="btn btn-sm btn-success" target="_blank">Zobacz</a>
+              </td>
+            </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Jeśli hotels jest null -->
+  <div th:if="${hotels == null}" class="alert alert-danger">
+    <h4>❌ Brak danych!</h4>
+    <p>Zmienna 'hotels' jest null - problem z kontrolerem!</p>
+  </div>
+
+  <!-- Linki -->
+  <div class="mt-4">
+    <a href="/admin/hotels/dashboard" class="btn btn-secondary">← Dashboard</a>
+    <a href="/" class="btn btn-outline-primary">🏠 Strona główna</a>
+  </div>
 </div>
 
-<!-- Prosty footer -->
-<footer class="footer mt-4 bg-light text-center">
-  <div class="container">
-    <span class="text-muted">© 2025 HotelReservation. Wszelkie prawa zastrzeżone.</span>
-  </div>
-</footer>
-
-<!-- Skrypty Bootstrap i jQuery -->
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+
+<nav th:fragment="admin_nav" class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div class="container">
+        <!-- Brand -->
+        <a class="navbar-brand" href="/admin/hotels/dashboard">
+            <i class="fas fa-cogs"></i>
+            <strong>Admin Panel</strong>
+        </a>
+
+        <!-- Toggle button for mobile -->
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#adminNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- Navigation items -->
+        <div class="collapse navbar-collapse" id="adminNav">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/hotels/dashboard">
+                        <i class="fas fa-chart-line"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/hotels">
+                        <i class="fas fa-hotel"></i> Hotele
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/rooms">
+                        <i class="fas fa-bed"></i> Pokoje
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/admin/reservations">
+                        <i class="fas fa-calendar-alt"></i> Rezerwacje
+                    </a>
+                </li>
+            </ul>
+
+            <!-- Right side -->
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/" target="_blank">
+                        <i class="fas fa-external-link-alt"></i> Strona główna
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/logout">
+                        <i class="fas fa-sign-out-alt"></i> Wyloguj
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+</body>
+</html>

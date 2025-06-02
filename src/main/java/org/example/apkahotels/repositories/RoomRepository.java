@@ -1,68 +1,98 @@
 package org.example.apkahotels.repositories;
 
 import org.example.apkahotels.models.Room;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.ArrayList;
+import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 @Repository
-public class RoomRepository {
-    private final List<Room> rooms = new ArrayList<>();
-    private Long currentId = 1L;
+public interface RoomRepository extends JpaRepository<Room, Long> {
 
-    public RoomRepository() {
-        // Przykładowe pokoje dla hotelu o ID 1
-        addRoom(new Room(null, 1L, "Standard", 2, 150.0, "https://source.unsplash.com/400x300/?standard,room", "101"));
-        addRoom(new Room(null, 1L, "Deluxe", 3, 250.0, "https://source.unsplash.com/400x300/?deluxe,room", "102"));
+    List<Room> findByHotelId(Long hotelId);
+    List<Room> findByHotelIdAndCapacityGreaterThanEqual(Long hotelId, int capacity);
+    List<Room> findByHotelIdAndPriceBetween(Long hotelId, double minPrice, double maxPrice);
+    List<Room> findByHotelIdAndRoomTypeAndCapacity(Long hotelId, String roomType, Integer capacity);
 
-        // Przykładowe pokoje dla hotelu o ID 2
-        addRoom(new Room(null, 2L, "Standard", 2, 120.0, "https://source.unsplash.com/400x300/?standard,room", "201"));
-        addRoom(new Room(null, 2L, "Suite", 4, 300.0, "https://source.unsplash.com/400x300/?suite,room", "202"));
+    @Query("SELECT r FROM Room r WHERE r.id IN :roomIds")
+    List<Room> findByIdIn(@Param("roomIds") Set<Long> roomIds);
 
-        addRoom(new Room(null, 3L, "Standard", 2, 150.0, "https://source.unsplash.com/400x300/?standard,room", "321"));
-        addRoom(new Room(null, 3L, "Suite", 4, 300.0, "https://source.unsplash.com/400x300/?suite,room", "321"));
+    @Query("SELECT r.hotelId, COUNT(r) FROM Room r GROUP BY r.hotelId")
+    List<Object[]> countRoomsByHotel();
 
-        addRoom(new Room(null, 4L, "Standard", 2, 170.0, "https://source.unsplash.com/400x300/?standard,room", "420"));
-        addRoom(new Room(null, 4L, "Deluxe", 4, 500.0, "https://source.unsplash.com/400x300/?suite,room", "444"));
+    // ===== NOWE OPTYMALIZOWANE ZAPYTANIA =====
 
-        addRoom(new Room(null, 5L, "Standard", 2, 220.0, "https://source.unsplash.com/400x300/?standard,room", "501"));
-        addRoom(new Room(null, 5L, "Deluxe", 4, 500.0, "https://source.unsplash.com/400x300/?suite,room", "588"));
-        addRoom(new Room(null, 2L, "Suite", 4, 300.0, "https://source.unsplash.com/400x300/?suite,room", "544"));
-    }
+    /**
+     * Zwraca pokoje które MOGĄ być dostępne (nie są zarezerwowane w podanych datach)
+     */
+    @Query("""
+        SELECT r FROM Room r 
+        WHERE r.hotelId = :hotelId 
+        AND r.id NOT IN (
+            SELECT res.roomId FROM Reservation res 
+            WHERE res.status != 'CANCELLED' 
+            AND (
+                (res.checkIn <= :checkOut AND res.checkOut >= :checkIn)
+            )
+        )
+        """)
+    List<Room> findAvailableRoomsByHotelAndDates(@Param("hotelId") Long hotelId,
+                                                 @Param("checkIn") LocalDate checkIn,
+                                                 @Param("checkOut") LocalDate checkOut);
 
+    /**
+     * Zlicza dostępne pokoje dla wszystkich hoteli jednym zapytaniem
+     */
+    @Query("""
+        SELECT r.hotelId, COUNT(r) FROM Room r 
+        WHERE r.id NOT IN (
+            SELECT res.roomId FROM Reservation res 
+            WHERE res.status != 'CANCELLED' 
+            AND (
+                (res.checkIn <= :checkOut AND res.checkOut >= :checkIn)
+            )
+        )
+        GROUP BY r.hotelId
+        """)
+    List<Object[]> countAvailableRoomsByHotelAndDates(@Param("checkIn") LocalDate checkIn,
+                                                      @Param("checkOut") LocalDate checkOut);
 
-    public List<Room> getAllRooms() {
-        return rooms;
-    }
+    /**
+     * Zwraca statystyki pokoi według typu dla hotelu
+     */
+    @Query("""
+        SELECT r.roomType, r.capacity, COUNT(r), MIN(r.price), MAX(r.price), AVG(r.price)
+        FROM Room r 
+        WHERE r.hotelId = :hotelId 
+        GROUP BY r.roomType, r.capacity
+        ORDER BY r.capacity, r.roomType
+        """)
+    List<Object[]> getRoomTypeStatistics(@Param("hotelId") Long hotelId);
 
-    public void addRoom(Room room) {
-        room.setId(currentId++);
-        rooms.add(room);
-    }
-
-    public List<Room> findByHotelId(Long hotelId) {
-        return rooms.stream()
-                .filter(room -> room.getHotelId() != null && room.getHotelId().equals(hotelId))
-                .collect(Collectors.toList());
-    }
-    public Room getRoomById(Long id) {
-        return rooms.stream()
-                .filter(r -> r.getId().equals(id))
-                .findFirst()
-                .orElse(null);
-    }
-
-    public List<Room> getRoomsByHotelId(Long hotelId) {
-        return rooms.stream()
-                .filter(r -> r.getHotelId()!= null && r.getHotelId().equals(hotelId))
-                .collect(Collectors.toList());
-    }
-
-    public void removeRoom(Long id) {
-        rooms.removeIf(r -> r.getId().equals(id));
-    }
-
+    /**
+     * Znajduje pierwszy dostępny pokój danego typu
+     */
+    @Query("""
+        SELECT r FROM Room r 
+        WHERE r.hotelId = :hotelId 
+        AND r.roomType = :roomType 
+        AND r.capacity = :capacity 
+        AND r.id NOT IN (
+            SELECT res.roomId FROM Reservation res 
+            WHERE res.status != 'CANCELLED' 
+            AND (
+                (res.checkIn <= :checkOut AND res.checkOut >= :checkIn)
+            )
+        )
+        ORDER BY r.roomNumber
+        """)
+    List<Room> findFirstAvailableRoomOfType(@Param("hotelId") Long hotelId,
+                                            @Param("roomType") String roomType,
+                                            @Param("capacity") Integer capacity,
+                                            @Param("checkIn") LocalDate checkIn,
+                                            @Param("checkOut") LocalDate checkOut);
 }
-
