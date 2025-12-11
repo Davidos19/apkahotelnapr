@@ -49,8 +49,6 @@ header.jumbotron {
     background-color: #495057;
     color: #f8f9fa;
 }
-body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-
 .card img {
     height: 220px;
     object-fit: cover;
@@ -73,9 +71,17 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     position: relative;
     z-index: 2;
 }
+@media (max-width: 768px) {
+    .card {
+        margin-bottom: 1rem;
+    }
 
-footer {
-    background-color: #f8f9fa;
-    padding: 20px;
-    margin-top: 50px;
+    .container {
+        padding: 0 10px;
+    }
+
+    .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
 }

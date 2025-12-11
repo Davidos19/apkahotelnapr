@@ -5,17 +5,13 @@ import org.example.apkahotels.models.UserRole;
 import org.example.apkahotels.repositories.UserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
+import java.math.BigDecimal;
+import java.util.*;
 
 @Service
 @Transactional
@@ -23,16 +19,14 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final InMemoryUserDetailsManager userDetailsManager;
     private final SecurityService securityService;
 
+    // ✅ USUŃ InMemoryUserDetailsManager z konstruktora!
     public UserService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
-                       InMemoryUserDetailsManager userDetailsManager,
                        SecurityService securityService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.userDetailsManager = userDetailsManager;
         this.securityService = securityService;
     }
 
@@ -44,7 +38,7 @@ public class UserService {
         System.out.println("Email: " + newUser.getEmail());
 
         // Sprawdź czy użytkownik już istnieje
-        if (userRepository.existsByUsername(username) || userDetailsManager.userExists(username)) {
+        if (userRepository.existsByUsername(username)) {
             throw new RuntimeException("Użytkownik już istnieje");
         }
 
@@ -56,26 +50,10 @@ public class UserService {
         String encodedPassword = passwordEncoder.encode(newUser.getPassword());
         newUser.setPassword(encodedPassword);
 
-        // Zapisz w bazie danych
+        // ✅ ZAPISZ TYLKO W BAZIE DANYCH - bez Spring Security InMemory
         AppUser savedUser = userRepository.save(newUser);
         System.out.println("Użytkownik zapisany w bazie danych z ID: " + savedUser.getId());
-
-        // Dodaj do Spring Security
-        UserDetails userDetails = User.builder()
-                .username(username)
-                .password(encodedPassword)
-                .roles("USER")
-                .build();
-
-        try {
-            userDetailsManager.createUser(userDetails);
-            System.out.println("Użytkownik " + username + " został pomyślnie zarejestrowany w Spring Security");
-        } catch (Exception e) {
-            // Usuń z bazy jeśli nie udało się dodać do Spring Security
-            userRepository.delete(savedUser);
-            System.err.println("Błąd przy dodawaniu do Spring Security: " + e.getMessage());
-            throw new RuntimeException("Błąd rejestracji: " + e.getMessage());
-        }
+        System.out.println("Użytkownik " + username + " został pomyślnie zarejestrowany");
     }
 
     public List<AppUser> getAllUsers() {
@@ -183,13 +161,48 @@ public class UserService {
         return password.toString();
     }
 
-    public List<AppUser> searchUsers(String query) {
-        if (query == null || query.trim().isEmpty()) {
+    // ✅ USUŃ REFERENCJE DO userDetailsManager
+    public void deleteUser(Long userId) {
+        AppUser user = getUserById(userId);
+        if (user != null) {
+            // Sprawdź czy nie ma aktywnych rezerwacji
+            String currentUsername = securityService.getCurrentUsername();
+            System.out.println("Admin " + currentUsername + " usuwa użytkownika " + user.getUsername());
+
+            // ✅ USUŃ TYLKO Z BAZY DANYCH
+            userRepository.deleteById(userId);
+        }
+    }
+
+    public List<AppUser> searchUsers(String searchTerm) {
+        if (searchTerm == null || searchTerm.trim().isEmpty()) {
             return getAllUsers();
         }
 
         return userRepository.findByUsernameContainingOrEmailContainingOrFirstNameContainingOrLastNameContaining(
-                query, query, query, query);
+                searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+
+    public Map<String, Object> getUserStats(Long userId) {
+        AppUser user = getUserById(userId);
+        if (user == null) return new HashMap<>();
+
+        Map<String, Object> stats = new HashMap<>();
+        // Podstawowe statystyki
+        stats.put("userId", userId);
+        stats.put("username", user.getUsername());
+        stats.put("role", user.getRole().getDescription());
+        stats.put("active", user.isActive());
+        stats.put("email", user.getEmail());
+        stats.put("createdAt", user.getCreatedAt());
+
+        // Te statystyki będą implementowane z ReservationService
+        stats.put("totalReservations", 0);
+        stats.put("completedReservations", 0);
+        stats.put("cancelledReservations", 0);
+        stats.put("totalSpent", BigDecimal.ZERO);
+
+        return stats;
     }
 
     public boolean userExists(String username) {

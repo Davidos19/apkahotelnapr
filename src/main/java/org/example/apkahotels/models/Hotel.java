@@ -1,6 +1,9 @@
 package org.example.apkahotels.models;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -10,9 +13,12 @@ public class Hotel {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Nazwa hotelu jest wymagana")
+    @Size(min = 2, max = 100)
     @Column(nullable = false)
     private String name;
 
+    @NotBlank(message = "Miasto jest wymagane")
     @Column(nullable = false)
     private String city;
 

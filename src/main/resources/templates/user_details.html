@@ -1,0 +1,199 @@
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Szczegóły użytkownika</title>
+    <!-- ✅ TYLKO Bootstrap 4 -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+<!-- ✅ POPRAWIONA SKŁADNIA FRAGMENTU -->
+<div th:replace="~{fragments/nav :: nav}"></div>
+
+<div class="container mt-4">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/admin/hotels/dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/admin/hotels/users">Użytkownicy</a></li>
+            <li class="breadcrumb-item active" th:text="${user.username}">Użytkownik</li>
+        </ol>
+    </nav>
+
+    <!-- ✅ ALERTY - Bootstrap 4 -->
+    <div th:if="${message}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <span th:text="${message}"></span>
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    </div>
+    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <span th:text="${error}"></span>
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    </div>
+
+    <div class="row">
+        <!-- Profil użytkownika -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>👤 Profil użytkownika</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center"
+                             style="width: 80px; height: 80px;">
+                            <!-- ✅ h2 zamiast fs-2 -->
+                            <span class="text-white h2" th:text="${user.firstName?.charAt(0)?.toString()?.toUpperCase()}">U</span>
+                        </div>
+                        <h5 class="mt-2" th:text="${user.firstName + ' ' + user.lastName}">Imię Nazwisko</h5>
+                        <!-- ✅ Bootstrap 4 badges -->
+                        <span class="badge" th:classappend="${user.active} ? 'badge-success' : 'badge-danger'">
+                            <span th:if="${user.active}">✅ Aktywny</span>
+                            <span th:unless="${user.active}">❌ Nieaktywny</span>
+                        </span>
+                    </div>
+
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Username:</strong></td>
+                            <td th:text="${user.username}">username</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Email:</strong></td>
+                            <td th:text="${user.email}">email@example.com</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Telefon:</strong></td>
+                            <td th:text="${user.phoneNumber}">+48 123 456 789</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Rola:</strong></td>
+                            <td>
+                                <!-- ✅ Bootstrap 4 badges -->
+                                <span class="badge" th:classappend="${user.role.name() == 'ADMIN'} ? 'badge-warning' : 'badge-info'"
+                                      th:text="${user.role.description}">Rola</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Utworzony:</strong></td>
+                            <td th:text="${user.createdAt}">2024-01-01</td>
+                        </tr>
+                    </table>
+
+                    <!-- ✅ AKCJE - Bootstrap 4 -->
+                    <div class="btn-group-vertical btn-block">
+                        <a th:href="@{/admin/hotels/users/{id}/edit(id=${user.id})}"
+                           class="btn btn-primary btn-sm mb-2">✏️ Edytuj dane</a>
+
+                        <form th:action="@{/admin/hotels/users/{id}/toggle-active(id=${user.id})}"
+                              method="post" class="mb-2">
+                            <!-- ✅ btn-block zamiast w-100 -->
+                            <button type="submit" class="btn btn-sm btn-block"
+                                    th:classappend="${user.active} ? 'btn-warning' : 'btn-success'">
+                                <span th:if="${user.active}">🔒 Dezaktywuj</span>
+                                <span th:unless="${user.active}">🔓 Aktywuj</span>
+                            </button>
+                        </form>
+
+                        <form th:action="@{/admin/hotels/users/{id}/reset-password(id=${user.id})}"
+                              method="post" class="mb-2">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm btn-block"
+                                    onclick="return confirm('Zresetować hasło użytkownika?')">
+                                🔑 Resetuj hasło
+                            </button>
+                        </form>
+
+                        <form th:action="@{/admin/hotels/users/{id}/delete(id=${user.id})}"
+                              method="post">
+                            <button type="submit" class="btn btn-danger btn-sm btn-block"
+                                    onclick="return confirm('UWAGA! Usunąć użytkownika? Tej operacji nie można cofnąć!')">
+                                🗑️ Usuń użytkownika
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rezerwacje użytkownika -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>📋 Rezerwacje użytkownika (<span th:text="${#lists.size(userReservations)}">0</span>)</h5>
+                </div>
+                <div class="card-body">
+                    <div th:if="${#lists.isEmpty(userReservations)}" class="text-center py-4">
+                        <p class="text-muted">Użytkownik nie ma żadnych rezerwacji</p>
+                    </div>
+
+                    <div th:unless="${#lists.isEmpty(userReservations)}" class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Hotel</th>
+                                <th>Pokój</th>
+                                <th>Data</th>
+                                <th>Cena</th>
+                                <th>Status</th>
+                                <th>Akcje</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="reservation : ${userReservations}">
+                                <td th:text="${reservation.id}">#1</td>
+                                <td>
+                                    <span th:text="${hotelDetails[reservation.hotelId]?.name}">Hotel</span>
+                                </td>
+                                <td>
+                                    <span th:text="${roomDetails[reservation.roomId]?.roomNumber}">101</span>
+                                    <small class="text-muted d-block" th:text="${roomDetails[reservation.roomId]?.roomType}">Standard</small>
+                                </td>
+                                <td>
+                                    <small th:text="${reservation.checkIn}">2024-01-01</small><br>
+                                    <small th:text="${reservation.checkOut}">2024-01-03</small>
+                                </td>
+                                <td>
+                                    <strong th:text="${reservation.totalPrice + ' PLN'}">299.99 PLN</strong>
+                                </td>
+                                <td>
+                                    <!-- ✅ Bootstrap 4 badges -->
+                                    <span class="badge"
+                                          th:classappend="${reservation.checkOut.isBefore(T(java.time.LocalDate).now())} ? 'badge-success' :
+                                                       (${reservation.checkIn.isAfter(T(java.time.LocalDate).now())} ? 'badge-info' : 'badge-warning')">
+                                        <span th:if="${reservation.checkOut.isBefore(T(java.time.LocalDate).now())}">✅ Zakończona</span>
+                                        <span th:if="${reservation.checkIn.isAfter(T(java.time.LocalDate).now())}">📅 Przyszła</span>
+                                        <span th:if="${reservation.checkIn.isBefore(T(java.time.LocalDate).now().plusDays(1)) and reservation.checkOut.isAfter(T(java.time.LocalDate).now())}">🏨 Aktywna</span>
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a th:href="@{/admin/hotels/users/{userId}/reservations/{reservationId}/edit(userId=${user.id}, reservationId=${reservation.id})}"
+                                           class="btn btn-outline-primary btn-sm">✏️</a>
+                                        <form th:action="@{/admin/hotels/users/{userId}/reservations/{reservationId}/cancel(userId=${user.id}, reservationId=${reservation.id})}"
+                                              method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm"
+                                                    onclick="return confirm('Anulować rezerwację?')">❌</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ TYLKO Bootstrap 4 JS -->
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
+    <link rel="stylesheet" href="/css/custom.css">
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Rezerwacja Hoteli</title>
@@ -11,24 +13,23 @@
 
 <div class="container mt-4">
     <h1>🏨 Znajdź Idealny Hotel</h1>
-
     <!-- Formularz wyszukiwania z datami -->
     <div class="card mb-4">
         <div class="card-body">
             <form method="get" action="/">
                 <div class="row">
-                    <div class="col-md-4">
+                    <div class="col-12 col-md-4 mb-3 mb-md-0">
                         <label for="checkIn">📅 Data przyjazdu:</label>
                         <input type="date" name="checkIn" id="checkIn" class="form-control"
                                th:value="${checkIn}" min="2024-01-01" max="2026-12-31">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-12 col-md-4 mb-3 mb-md-0">
                         <label for="checkOut">📅 Data wyjazdu:</label>
                         <input type="date" name="checkOut" id="checkOut" class="form-control"
                                th:value="${checkOut}" min="2024-01-01" max="2026-12-31">
                     </div>
-                    <div class="col-md-4 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary btn-block">🔍 Sprawdź dostępność</button>
+                    <div class="col-12 col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">🔍 Sprawdź dostępność</button>
                     </div>
                 </div>
             </form>
@@ -37,41 +38,43 @@
 
     <!-- Lista hoteli z dostępnością -->
     <div class="row">
-        <div th:each="hotel : ${hotels}" class="col-md-6 col-lg-4 mb-4">
+        <div th:each="hotel : ${hotels}" class="col-12 col-md-6 col-lg-4 mb-4">
             <div class="card h-100">
-                <img th:if="${hotel.imageUrl}" th:src="${hotel.imageUrl}" class="card-img-top" style="height: 200px; object-fit: cover;" th:alt="${hotel.name}">
+                <img th:if="${hotel.imageUrl}" th:src="${hotel.imageUrl}"
+                     class="card-img-top img-fluid"
+                     style="height: 200px; object-fit: cover;"
+                     th:alt="${hotel.name}">
                 <div class="card-body d-flex flex-column">
                     <h5 class="card-title" th:text="${hotel.name}">Nazwa Hotelu</h5>
                     <p class="card-text">
                         <i class="fas fa-map-marker-alt"></i> <span th:text="${hotel.city}">Miasto</span><br>
                         <span th:if="${hotel.stars}" class="text-warning">
-                            <span th:each="star : ${#numbers.sequence(1, #numbers.formatInteger(hotel.stars, 0))}">⭐</span>
-                        </span>
+                        <span th:each="star : ${#numbers.sequence(1, #numbers.formatInteger(hotel.stars, 0))}">⭐</span>
+                    </span>
                     </p>
-                    <p class="card-text" th:text="${hotel.description}">Opis hotelu</p>
+                    <p class="card-text flex-grow-1" th:text="${hotel.description}">Opis hotelu</p>
 
                     <!-- Informacja o dostępności -->
-                    <div class="alert" th:classappend="${hotel.availableRooms > 0} ? 'alert-success' : 'alert-warning'" role="alert">
+                    <div class="alert mb-3" th:classappend="${hotel.availableRooms > 0} ? 'alert-success' : 'alert-warning'" role="alert">
                         <strong>
-                            <span th:if="${hotel.availableRooms > 0}">
-                                ✅ Dostępne pokoje: <span th:text="${hotel.availableRooms}">0</span>
-                            </span>
+                        <span th:if="${hotel.availableRooms > 0}">
+                            ✅ Dostępne pokoje: <span th:text="${hotel.availableRooms}">0</span>
+                        </span>
                             <span th:if="${hotel.availableRooms == 0}">
-                                ❌ Brak dostępnych pokoi w wybranych datach
-                            </span>
+                            ❌ Brak dostępnych pokoi w wybranych datach
+                        </span>
                         </strong>
                     </div>
 
                     <div class="mt-auto">
                         <a th:href="@{/hotel/{id}(id=${hotel.id}, checkIn=${checkIn}, checkOut=${checkOut})}"
-                           class="btn btn-primary btn-block">Zobacz szczegóły</a>
+                           class="btn btn-primary w-100">Zobacz szczegóły</a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Reszta strony bez zmian... -->
 </div>
 
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

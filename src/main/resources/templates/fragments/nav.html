@@ -1,41 +1,51 @@
+
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
+    <!-- ✅ BOOTSTRAP 4 -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
 
-<nav th:fragment="nav" class="navbar navbar-expand-lg navbar-dark bg-primary">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark" th:fragment="nav">
     <div class="container">
-        <a class="navbar-brand" href="/">🏨 Hotel Booking</a>
+        <a class="navbar-brand" href="/">🏨 Hotel App</a>
 
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+        <!-- ✅ BOOTSTRAP 4 TOGGLE -->
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
 
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav me-auto">
+            <ul class="navbar-nav mr-auto">
                 <li class="nav-item">
                     <a class="nav-link" href="/">🏠 Strona główna</a>
                 </li>
 
-                <!-- Sekcja dla administratorów -->
-                <li th:if="${isAdmin}" class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-toggle="dropdown">
-                        👑 Panel Administratora
+                <!-- ✅ PANEL ADMINISTRATORA - BOOTSTRAP 4 -->
+                <li sec:authorize="hasRole('ADMIN')" class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="adminDropdown"
+                       role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        🛠️ Panel Administratora
                     </a>
+                    <!-- ✅ BOOTSTRAP 4 DROPDOWN -->
                     <div class="dropdown-menu">
-                        <a class="dropdown-item" href="/admin/hotels">🏨 Hotele</a>
-                        <a class="dropdown-item" href="/admin/users">👥 Użytkownicy</a>
-                        <a class="dropdown-item" href="/admin/hotels/dashboard">📊 Dashboard</a>
-                        <div class="dropdown-divider"></div>
-                        <a class="dropdown-item" href="/admin/hotels/admin/reservations">📋 Wszystkie rezerwacje</a>
+                        <a class="dropdown-item" th:href="@{/admin/hotels}">🏨 Zarządzaj Hotelami</a>
+                        <a class="dropdown-item" th:href="@{/admin/hotels/dashboard}">📊 Dashboard</a>
+                        <a class="dropdown-item" th:href="@{/admin/hotels/users}">👥 Użytkownicy</a>
+                        <a class="dropdown-item" th:href="@{/admin/reservations}">📋 Wszystkie Rezerwacje</a>
                     </div>
                 </li>
 
-                <!-- Sekcja dla menedżerów hoteli -->
+                <!-- MENEDŻER -->
                 <li th:if="${isHotelManager and !isAdmin}" class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="managerDropdown" role="button" data-toggle="dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="managerDropdown"
+                       role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         🏨 Panel Menedżera
                     </a>
                     <div class="dropdown-menu">
@@ -44,18 +54,19 @@
                     </div>
                 </li>
 
-                <!-- Sekcja dla recepcjonistów -->
+                <!-- RECEPCJONISTA -->
                 <li th:if="${canManageReservations and !isHotelManager and !isAdmin}" class="nav-item">
                     <a class="nav-link" href="/admin/hotels/admin/reservations">📋 Rezerwacje</a>
                 </li>
             </ul>
 
-            <!-- Menu użytkownika po prawej stronie -->
+            <!-- ✅ MENU UŻYTKOWNIKA - BOOTSTRAP 4 -->
             <ul class="navbar-nav">
                 <li th:if="${currentUser != null}" class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown"
+                       role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         👤 <span th:text="${currentUser.username}">User</span>
-                        <!-- Pokaż rolę jako badge -->
+                        <!-- ✅ BOOTSTRAP 4 BADGES -->
                         <span th:if="${currentUser.role != null}"
                               class="badge ml-1"
                               th:classappend="${isAdmin} ? 'badge-warning' : 'badge-info'"
@@ -63,6 +74,7 @@
                             Rola
                         </span>
                     </a>
+                    <!-- ✅ BOOTSTRAP 4 DROPDOWN -->
                     <div class="dropdown-menu dropdown-menu-right">
                         <a class="dropdown-item" href="/profile">👤 Profil</a>
                         <a class="dropdown-item" href="/my-reservations">📋 Moje rezerwacje</a>
@@ -74,7 +86,7 @@
                     </div>
                 </li>
 
-                <!-- Jeśli użytkownik nie jest zalogowany -->
+                <!-- NIEZALOGOWANI -->
                 <li th:if="${currentUser == null}" class="nav-item">
                     <a class="nav-link" href="/login">🔑 Zaloguj się</a>
                 </li>

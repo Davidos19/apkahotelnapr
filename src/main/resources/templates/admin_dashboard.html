@@ -1,131 +1,387 @@
-
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard Administracyjny</title>
+  <title>📊 Dashboard Administratora</title>
+
+  <!-- Bootstrap 5 -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+
+
   <style>
-    .stat-card {
-      transition: transform 0.2s;
+    .stats-card {
+      border: none;
+      border-radius: 15px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      transition: transform 0.3s ease;
     }
-    .stat-card:hover {
+    .stats-card:hover {
       transform: translateY(-5px);
+    }
+    .chart-container {
+      position: relative;
+      height: 300px;
+      width: 100%;
+    }
+    .alert-item {
+      border-left: 4px solid;
+      padding: 12px 20px;
+      margin-bottom: 10px;
+      border-radius: 0 8px 8px 0;
+    }
+    .bg-gradient-primary {
+      background: linear-gradient(45deg, #007bff, #0056b3);
+    }
+    .bg-gradient-success {
+      background: linear-gradient(45deg, #28a745, #1e7e34);
+    }
+    .bg-gradient-warning {
+      background: linear-gradient(45deg, #ffc107, #e0a800);
+    }
+    .bg-gradient-danger {
+      background: linear-gradient(45deg, #dc3545, #a71d2a);
     }
   </style>
 </head>
-<body>
+<body class="bg-light">
+
 <div th:replace="~{fragments/nav :: nav}"></div>
 
-<div class="container mt-4">
-  <h1 class="mb-4">🏨 Dashboard Administracyjny</h1>
+<div class="container-fluid mt-4">
+  <!-- 🎯 NAGŁÓWEK -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2 mb-0">📊 Dashboard Administratora</h1>
+          <p class="text-muted">Przegląd stanu systemu hotelowego</p>
+        </div>
+        <div>
+                    <span class="badge bg-success fs-6">
+                        🟢 Online - <span th:text="${#temporals.format(#temporals.createNow(), 'HH:mm')}">12:34</span>
+                    </span>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  <!-- Komunikaty błędów -->
+  <!-- ❗ KOMUNIKATY BŁĘDÓW -->
   <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
     <span th:text="${error}"></span>
-    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
 
-  <!-- Główne statystyki -->
+  <!-- 💰 KARTY STATYSTYK - ROW 1 -->
   <div class="row mb-4">
-    <div class="col-md-3">
-      <div class="card text-white bg-primary mb-3 stat-card">
-        <div class="card-body text-center">
-          <h5 class="card-title">📋 Rezerwacje</h5>
-          <h2 class="card-text" th:text="${stats != null ? stats.totalReservations : 0}">0</h2>
-          <small>Wszystkich</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card text-white bg-success mb-3 stat-card">
-        <div class="card-body text-center">
-          <h5 class="card-title">🏨 Hotele</h5>
-          <h2 class="card-text" th:text="${stats != null ? stats.totalHotels : 0}">0</h2>
-          <small>W systemie</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card text-white bg-info mb-3 stat-card">
-        <div class="card-body text-center">
-          <h5 class="card-title">🛏️ Pokoje</h5>
-          <h2 class="card-text" th:text="${stats != null ? stats.totalRooms : 0}">0</h2>
-          <small>Dostępnych</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card text-white bg-warning mb-3 stat-card">
-        <div class="card-body text-center">
-          <h5 class="card-title">📅 Dzisiaj</h5>
-          <h2 class="card-text" th:text="${stats != null ? stats.todayReservations : 0}">0</h2>
-          <small>Rezerwacji</small>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Dodatkowe statystyki -->
-  <div class="row mb-4">
-    <div class="col-md-6">
-      <div class="card">
-        <div class="card-header">
-          <h5>📊 Statystyki miesięczne</h5>
-        </div>
+    <!-- Przychód dzisiaj -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card bg-gradient-primary text-white">
         <div class="card-body">
-          <p>Rezerwacje w tym miesiącu: <strong th:text="${stats != null ? stats.thisMonthReservations : 0}">0</strong></p>
-          <div class="progress">
-            <div class="progress-bar" role="progressbar"
-                 th:style="'width: ' + ((${stats != null and stats.totalReservations > 0} ? ${stats.thisMonthReservations * 100 / stats.totalReservations} : 0)) + '%'"
-                 th:text="${stats != null ? stats.thisMonthReservations : 0}">0</div>
+          <div class="row align-items-center">
+            <div class="col">
+              <div class="text-xs fw-bold text-uppercase mb-1">Przychód dzisiaj</div>
+              <div class="h4 mb-0 fw-bold">
+                <span th:text="${#numbers.formatDecimal(stats.todayRevenue ?: 0, 0, 2)}">0.00</span> zł
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-coins fa-2x text-white-50"></i>
+            </div>
           </div>
         </div>
       </div>
     </div>
-    <div class="col-md-6">
-      <div class="card">
-        <div class="card-header">
-          <h5>🚀 Szybkie akcje</h5>
-        </div>
+
+    <!-- Przychód miesięczny -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card bg-gradient-success text-white">
         <div class="card-body">
-          <a class="btn btn-primary btn-block mb-2" th:href="@{/admin/hotels}">
-            🏨 Zarządzaj hotelami
-          </a>
-          <a class="btn btn-success btn-block mb-2" th:href="@{/admin/hotels/new}">
-            ➕ Dodaj nowy hotel
-          </a>
-          <a class="btn btn-info btn-block mb-2" th:href="@{/admin/hotels/users}">
-            👥 Zarządzaj użytkownikami
-          </a>
-          <!-- POPRAWIONY LINK DO REZERWACJI -->
-          <a class="btn btn-warning btn-block" th:href="@{/admin/reservations}">
-            📋 Zobacz wszystkie rezerwacje
-          </a>
+          <div class="row align-items-center">
+            <div class="col">
+              <div class="text-xs fw-bold text-uppercase mb-1">Przychód (30 dni)</div>
+              <div class="h4 mb-0 fw-bold">
+                <span th:text="${#numbers.formatDecimal(stats.monthRevenue ?: 0, 0, 2)}">0.00</span> zł
+              </div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-chart-line fa-2x text-white-50"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rezerwacje dzisiaj -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card bg-gradient-warning text-white">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col">
+              <div class="text-xs fw-bold text-uppercase mb-1">Check-iny dzisiaj</div>
+              <div class="h4 mb-0 fw-bold" th:text="${stats.todayReservations ?: 0}">0</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-calendar-check fa-2x text-white-50"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Łączne rezerwacje -->
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card stats-card bg-gradient-danger text-white">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col">
+              <div class="text-xs fw-bold text-uppercase mb-1">Wszystkich rezerwacji</div>
+              <div class="h4 mb-0 fw-bold" th:text="${stats.totalReservations ?: 0}">0</div>
+            </div>
+            <div class="col-auto">
+              <i class="fas fa-bed fa-2x text-white-50"></i>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Ostatnie aktywności -->
+  <!-- 📊 WYKRESY - ROW 2 -->
+  <div class="row mb-4">
+    <!-- WYKRES OBŁOŻENIA -->
+    <div class="col-xl-8">
+      <div class="card stats-card">
+        <div class="card-header bg-primary text-white">
+          <h6 class="m-0 fw-bold">📈 Obłożenie hoteli (7 dni)</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="occupancyChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TYPY POKOI -->
+    <div class="col-xl-4">
+      <div class="card stats-card">
+        <div class="card-header bg-success text-white">
+          <h6 class="m-0 fw-bold">🏨 Rozkład typów pokoi</h6>
+        </div>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="roomTypeChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🏆 TOP HOTELI i 🔔 ALERTY - ROW 3 -->
+  <div class="row mb-4">
+    <!-- TOP HOTELI -->
+    <div class="col-xl-6">
+      <div class="card stats-card">
+        <div class="card-header bg-warning text-dark">
+          <h6 class="m-0 fw-bold">🏆 TOP 5 Hoteli</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+              <tr>
+                <th>🏨 Hotel</th>
+                <th>📊 Rezerwacje</th>
+                <th>💰 Przychód</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr th:each="hotelData, iterStat : ${stats.topHotels}">
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="me-2">
+                                                <span class="badge bg-primary rounded-pill"
+                                                      th:text="${iterStat.count}">1</span>
+                    </div>
+                    <div>
+                      <div class="fw-bold" th:text="${hotelData.hotel?.name ?: 'Nieznany'}">Hotel</div>
+                      <div class="small text-muted" th:text="${hotelData.hotel?.city ?: ''}">Miasto</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="fw-bold" th:text="${hotelData.reservationCount}">0</td>
+                <td class="text-success fw-bold">
+                  <span th:text="${#numbers.formatDecimal(hotelData.revenue ?: 0, 0, 2)}">0.00</span> zł
+                </td>
+              </tr>
+              <tr th:if="${#lists.isEmpty(stats.topHotels)}">
+                <td colspan="3" class="text-center text-muted py-4">
+                  <i class="fas fa-info-circle me-2"></i>Brak danych o hotelach
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALERTY -->
+    <div class="col-xl-6">
+      <div class="card stats-card">
+        <div class="card-header bg-danger text-white">
+          <h6 class="m-0 fw-bold">🔔 Alerty systemowe</h6>
+        </div>
+        <div class="card-body">
+          <div th:if="${!#lists.isEmpty(stats.alerts)}">
+            <div th:each="alert : ${stats.alerts}"
+                 class="alert-item bg-light border-warning"
+                 th:text="${alert}">
+            </div>
+          </div>
+          <div th:if="${#lists.isEmpty(stats.alerts)}"
+               class="text-center py-4">
+            <div class="text-success">
+              <i class="fas fa-check-circle fa-3x mb-2"></i>
+              <div class="h5">✅ Wszystko w porządku!</div>
+              <div class="text-muted">Brak alertów systemowych</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📈 PODSTAWOWE STATYSTYKI - ROW 4 -->
   <div class="row">
     <div class="col-12">
-      <div class="card">
-        <div class="card-header">
-          <h5>🕒 Ostatnia aktywność</h5>
+      <div class="card stats-card">
+        <div class="card-header bg-info text-white">
+          <h6 class="m-0 fw-bold">📊 Podstawowe statystyki</h6>
         </div>
         <div class="card-body">
-          <p class="text-muted">System działa poprawnie.</p>
-          <small class="text-muted">Wszystkie funkcje administracyjne są dostępne powyżej.</small>
+          <div class="row text-center">
+            <div class="col-md-3">
+              <div class="border-end border-2">
+                <div class="h4 text-primary fw-bold" th:text="${stats.totalHotels ?: 0}">0</div>
+                <div class="text-muted">🏨 Hoteli w systemie</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border-end border-2">
+                <div class="h4 text-success fw-bold" th:text="${stats.totalRooms ?: 0}">0</div>
+                <div class="text-muted">🛏️ Łączna liczba pokoi</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border-end border-2">
+                <div class="h4 text-warning fw-bold" th:text="${stats.thisWeekReservations ?: 0}">0</div>
+                <div class="text-muted">📅 Rezerwacje (7 dni)</div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="h4 text-info fw-bold">
+                <span th:text="${#numbers.formatDecimal(stats.totalRevenue ?: 0, 0, 2)}">0.00</span> zł
+              </div>
+              <div class="text-muted">💰 Łączny przychód</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-
 </div>
 
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+
+    // 📈 WYKRES OBŁOŻENIA
+    const occupancyCtx = document.getElementById('occupancyChart').getContext('2d');
+    const occupancyData = /*[[${stats.occupancyChart}]]*/ {};
+
+    new Chart(occupancyCtx, {
+      type: 'line',
+      data: {
+        labels: Object.keys(occupancyData),
+        datasets: [{
+          label: 'Obłożenie (%)',
+          data: Object.values(occupancyData),
+          borderColor: '#007bff',
+          backgroundColor: 'rgba(0, 123, 255, 0.1)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: '#007bff',
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          pointRadius: 5
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              callback: function(value) {
+                return value + '%';
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // 🏨 WYKRES TYPÓW POKOI
+    const roomTypeCtx = document.getElementById('roomTypeChart').getContext('2d');
+    const roomTypeData = /*[[${stats.roomStats}]]*/ {};
+
+    new Chart(roomTypeCtx, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(roomTypeData),
+        datasets: [{
+          data: Object.values(roomTypeData),
+          backgroundColor: [
+            '#007bff', '#28a745', '#ffc107',
+            '#dc3545', '#17a2b8', '#6f42c1'
+          ],
+          borderWidth: 2,
+          borderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              padding: 15
+            }
+          }
+        }
+      }
+    });
+
+  });
+</script>
+
 </body>
 </html>

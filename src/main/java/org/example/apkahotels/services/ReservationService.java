@@ -13,12 +13,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -200,6 +198,59 @@ public class ReservationService {
         }
         return List.of();
     }
+
+
+
+    public List<Reservation> getActiveReservationsByUsername(String username) {
+        LocalDate today = LocalDate.now();
+        // ZMIEŃ: findByUsername -> findByUsernameOrderByCheckInDesc
+        return reservationRepository.findByUsernameOrderByCheckInDesc(username).stream()
+                .filter(r -> r.getCheckOut().isAfter(today))
+                .collect(Collectors.toList());
+    }
+
+    public Map<String, Object> getReservationStats(String username) {
+        // ZMIEŃ: findByUsername -> findByUsernameOrderByCheckInDesc
+        List<Reservation> userReservations = reservationRepository.findByUsernameOrderByCheckInDesc(username);
+
+        Map<String, Object> stats = new HashMap<>();
+        LocalDate now = LocalDate.now();
+
+        stats.put("total", userReservations.size());
+
+        // Zakończone rezerwacje
+        long completed = userReservations.stream()
+                .filter(r -> r.getCheckOut().isBefore(now))
+                .count();
+        stats.put("completed", completed);
+
+        // Aktywne rezerwacje (dzisiaj w hotelu)
+        long active = userReservations.stream()
+                .filter(r -> !r.getCheckIn().isAfter(now) && r.getCheckOut().isAfter(now))
+                .count();
+        stats.put("active", active);
+
+        // Przyszłe rezerwacje
+        long future = userReservations.stream()
+                .filter(r -> r.getCheckIn().isAfter(now))
+                .count();
+        stats.put("future", future);
+
+        // Całkowita kwota wydana
+        Double totalSpent = userReservations.stream()
+                .mapToDouble(r -> r.getTotalPrice().doubleValue())
+                .sum();
+        stats.put("totalSpent", BigDecimal.valueOf(totalSpent));
+
+        return stats;
+    }
+
+    public long countReservationsByUsername(String username) {
+        // ZMIEŃ: findByUsername -> findByUsernameOrderByCheckInDesc
+        return reservationRepository.findByUsernameOrderByCheckInDesc(username).size();
+    }
+
+
 
     public void deleteReservation(Long reservationId) {
         reservationRepository.deleteById(reservationId); // JPA standardowa metoda

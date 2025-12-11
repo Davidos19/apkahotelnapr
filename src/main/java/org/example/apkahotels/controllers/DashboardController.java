@@ -6,8 +6,11 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+import java.util.Map;
+
+
 @Controller
-@RequestMapping("/admin")
+@RequestMapping("/admin/hotels") // ✅ ZMIEŃ na to samo co AdminController
 public class DashboardController {
 
     private final DashboardService dashboardService;
@@ -18,7 +21,8 @@ public class DashboardController {
 
     @GetMapping("/dashboard")
     public String showDashboard(Model model) {
-        model.addAttribute("stats", dashboardService.getDashboardStats());
+        Map<String, Object> stats = dashboardService.getAdvancedDashboardStats();
+        model.addAttribute("stats", stats);
         return "admin_dashboard";
     }
 }

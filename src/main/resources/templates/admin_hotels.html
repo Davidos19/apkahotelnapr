@@ -18,12 +18,6 @@
     <p th:text="${error}">Błąd</p>
   </div>
 
-  <!-- Test danych -->
-  <div class="alert alert-info">
-    <strong>Debug:</strong>
-    Hotels = <span th:text="${hotels != null ? 'Lista z ' + #lists.size(hotels) + ' elementami' : 'NULL'}">test</span>
-  </div>
-
   <!-- Sprawdź czy hotels nie jest null -->
   <div th:if="${hotels != null}">
     <!-- Statystyki - PODSTAWOWE -->

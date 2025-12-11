@@ -2,6 +2,7 @@ package org.example.apkahotels.controllers;
 
 import org.example.apkahotels.models.*;
 import org.example.apkahotels.services.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -21,66 +22,24 @@ public class AdminController {
     private final HotelService hotelService;
     private final RoomService roomService;
     private final ReviewService reviewService;
-
+    private final DashboardService dashboardService; // ✅ DODAJ TO
 
     public AdminController(UserService userService,
                            ReservationService reservationService,
                            HotelService hotelService,
                            RoomService roomService,
-                           ReviewService reviewService) {
+                           ReviewService reviewService,
+                           DashboardService dashboardService) { // ✅ DODAJ TO
         this.userService = userService;
         this.reservationService = reservationService;
         this.hotelService = hotelService;
         this.roomService = roomService;
         this.reviewService = reviewService;
+        this.dashboardService = dashboardService; // ✅ DODAJ TO
     }
 
-    @GetMapping("/dashboard")
-    public String adminDashboard(Model model) {
-        try {
-            // Utwórz obiekt stats zgodny z template
-            Map<String, Object> stats = new HashMap<>();
 
-            // Podstawowe statystyki
-            stats.put("totalHotels", hotelService.getAllHotels().size());
-            stats.put("totalReservations", reservationService.getAllReservationsForAdmin().size());
 
-            // Pokoje
-            List<Room> allRooms = new ArrayList<>();
-            for (Hotel hotel : hotelService.getAllHotels()) {
-                allRooms.addAll(roomService.getRoomsByHotelId(hotel.getId()));
-            }
-            stats.put("totalRooms", allRooms.size());
-
-            // Rezerwacje dzisiaj
-            LocalDate today = LocalDate.now();
-            long todayReservations = reservationService.getAllReservationsForAdmin()
-                    .stream()
-                    .filter(r -> r.getCheckIn().equals(today))
-                    .count();
-            stats.put("todayReservations", todayReservations);
-
-            // Rezerwacje w tym miesiącu
-            LocalDate startOfMonth = today.withDayOfMonth(1);
-            LocalDate endOfMonth = today.withDayOfMonth(today.lengthOfMonth());
-            long thisMonthReservations = reservationService.getAllReservationsForAdmin()
-                    .stream()
-                    .filter(r -> !r.getCheckIn().isBefore(startOfMonth) && !r.getCheckIn().isAfter(endOfMonth))
-                    .count();
-            stats.put("thisMonthReservations", thisMonthReservations);
-
-            // Dodaj obiekt stats do modelu
-            model.addAttribute("stats", stats);
-
-            // Zwróć odpowiednią nazwę template
-            return "admin_dashboard"; // BEZ folderu admin/
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            model.addAttribute("error", "Błąd przy ładowaniu dashboardu: " + e.getMessage());
-            return "admin_dashboard";
-        }
-    }
 
     @GetMapping("/users")
     public String listUsers(Model model) {
@@ -95,11 +54,14 @@ public class AdminController {
             return "admin/dashboard";
         }
     }
+    @Autowired
+    private SecurityAuditService auditService;
 
     @PostMapping("/users/{id}/role")
     public String changeUserRole(@PathVariable Long id,
                                  @RequestParam UserRole newRole,
                                  RedirectAttributes redirectAttributes) {
+        auditService.logActivity("CHANGE_USER_ROLE", "Changed role for user ID: " + id + " to: " + newRole);
         try {
             userService.changeUserRole(id, newRole);
             redirectAttributes.addFlashAttribute("message",
@@ -140,22 +102,196 @@ public class AdminController {
         return "redirect:/admin/hotels/users";
     }
 
+
+
     @GetMapping("/users/{id}/details")
     public String getUserDetails(@PathVariable Long id, Model model) {
         try {
             AppUser user = userService.getUserById(id);
-            // Użyj username zamiast userId
+            if (user == null) {
+                model.addAttribute("error", "Użytkownik nie znaleziony");
+                return "redirect:/admin/hotels/users";
+            }
+
+            // Pobierz rezerwacje użytkownika
             List<Reservation> userReservations = reservationService.getReservationsByUsername(user.getUsername());
+
+            // Dodaj szczegóły hoteli i pokoi do rezerwacji
+            Map<Long, Hotel> hotelDetails = new HashMap<>();
+            Map<Long, Room> roomDetails = new HashMap<>();
+
+            for (Reservation reservation : userReservations) {
+                if (reservation.getHotelId() != null) {
+                    Hotel hotel = hotelService.getHotelById(reservation.getHotelId());
+                    if (hotel != null) {
+                        hotelDetails.put(reservation.getHotelId(), hotel);
+                    }
+                }
+                if (reservation.getRoomId() != null) {
+                    Room room = roomService.getRoomById(reservation.getRoomId());
+                    if (room != null) {
+                        roomDetails.put(reservation.getRoomId(), room);
+                    }
+                }
+            }
 
             model.addAttribute("user", user);
             model.addAttribute("userReservations", userReservations);
+            model.addAttribute("hotelDetails", hotelDetails);
+            model.addAttribute("roomDetails", roomDetails);
             model.addAttribute("userRoles", UserRole.values());
 
-            return "admin/user_details";
+            // ✅ ZMIEŃ: admin/user_details -> user_details
+            return "user_details";  // SZUKA: templates/user_details.html
+
         } catch (Exception e) {
+            model.addAttribute("error", "Błąd pobierania danych użytkownika: " + e.getMessage());
             return "redirect:/admin/hotels/users";
         }
     }
+
+
+    @GetMapping("/users/{id}/edit")
+    public String editUser(@PathVariable Long id, Model model) {
+        try {
+            AppUser user = userService.getUserById(id);
+            if (user == null) {
+                return "redirect:/admin/hotels/users";
+            }
+
+            model.addAttribute("user", user);
+            model.addAttribute("userRoles", UserRole.values());
+
+            return "admin_edit_user";  // template: admin_edit_user.html
+
+        } catch (Exception e) {
+            model.addAttribute("error", "Błąd pobierania danych użytkownika");
+            return "redirect:/admin/hotels/users";
+        }
+    }
+
+
+    @PostMapping("/users/{id}/update")
+    public String updateUser(@PathVariable Long id,
+                             @ModelAttribute AppUser updatedUser,
+                             RedirectAttributes redirectAttributes) {
+        try {
+            AppUser existingUser = userService.getUserById(id);
+            if (existingUser == null) {
+                redirectAttributes.addFlashAttribute("error", "Użytkownik nie został znaleziony");
+                return "redirect:/admin/hotels/users";
+            }
+
+            // Aktualizuj dane (zachowaj hasło i username)
+            existingUser.setEmail(updatedUser.getEmail());
+            existingUser.setFirstName(updatedUser.getFirstName());
+            existingUser.setLastName(updatedUser.getLastName());
+            existingUser.setPhoneNumber(updatedUser.getPhoneNumber());
+            // NIE aktualizujemy hasła ani username w tej metodzie
+
+            userService.saveUser(existingUser);
+            redirectAttributes.addFlashAttribute("message", "Dane użytkownika zostały zaktualizowane");
+            return "redirect:/admin/hotels/users/" + id + "/details";
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd aktualizacji: " + e.getMessage());
+            return "redirect:/admin/hotels/users/" + id + "/edit";
+        }
+    }
+
+    @PostMapping("/users/{userId}/reservations/{reservationId}/cancel")
+    public String cancelUserReservation(@PathVariable Long userId,
+                                        @PathVariable Long reservationId,
+                                        RedirectAttributes redirectAttributes) {
+        try {
+            reservationService.cancelReservation(reservationId);
+            redirectAttributes.addFlashAttribute("message", "Rezerwacja została anulowana");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd anulowania rezerwacji: " + e.getMessage());
+        }
+        return "redirect:/admin/hotels/users/" + userId + "/details";
+    }
+
+    @GetMapping("/users/{userId}/reservations/{reservationId}/edit")
+    public String editUserReservation(@PathVariable Long userId,
+                                      @PathVariable Long reservationId,
+                                      Model model) {
+        try {
+            AppUser user = userService.getUserById(userId);
+            Reservation reservation = reservationService.getReservationById(reservationId);
+
+            if (user == null || reservation == null) {
+                return "redirect:/admin/hotels/users/" + userId + "/details";
+            }
+
+            Hotel hotel = hotelService.getHotelById(reservation.getHotelId());
+            List<Room> availableRooms = roomService.getRoomsByHotelId(reservation.getHotelId());
+
+            model.addAttribute("user", user);
+            model.addAttribute("reservation", reservation);
+            model.addAttribute("hotel", hotel);
+            model.addAttribute("availableRooms", availableRooms);
+            model.addAttribute("reservationStatuses", Arrays.asList("CONFIRMED", "CANCELLED", "COMPLETED"));
+
+            return "admin/edit_user_reservation";
+        } catch (Exception e) {
+            return "redirect:/admin/hotels/users/" + userId + "/details";
+        }
+    }
+
+    @PostMapping("/users/{userId}/reservations/{reservationId}/update")
+    public String updateUserReservation(@PathVariable Long userId,
+                                        @PathVariable Long reservationId,
+                                        @ModelAttribute Reservation updatedReservation,
+                                        RedirectAttributes redirectAttributes) {
+        try {
+            Reservation existingReservation = reservationService.getReservationById(reservationId);
+            if (existingReservation != null) {
+                // Aktualizuj tylko wybrane pola
+                existingReservation.setCheckIn(updatedReservation.getCheckIn());
+                existingReservation.setCheckOut(updatedReservation.getCheckOut());
+                existingReservation.setRoomId(updatedReservation.getRoomId());
+                existingReservation.setTotalPrice(updatedReservation.getTotalPrice());
+                // Dodaj status jeśli masz pole status w Reservation
+
+                reservationService.updateReservation(existingReservation);
+                redirectAttributes.addFlashAttribute("message", "Rezerwacja została zaktualizowana");
+            }
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd aktualizacji rezerwacji: " + e.getMessage());
+        }
+        return "redirect:/admin/hotels/users/" + userId + "/details";
+    }
+
+    @PostMapping("/users/{id}/delete")
+    public String deleteUser(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            AppUser user = userService.getUserById(id);
+            if (user == null) {
+                redirectAttributes.addFlashAttribute("error", "Użytkownik nie został znaleziony");
+                return "redirect:/admin/hotels/users";
+            }
+
+            // Sprawdź czy użytkownik ma aktywne rezerwacje
+            List<Reservation> userReservations = reservationService.getReservationsByUsername(user.getUsername());
+            long activeReservations = userReservations.stream()
+                    .filter(r -> r.getCheckOut().isAfter(LocalDate.now()))
+                    .count();
+
+            if (activeReservations > 0) {
+                redirectAttributes.addFlashAttribute("error",
+                        "Nie można usunąć użytkownika z aktywnymi rezerwacjami (" + activeReservations + ")");
+                return "redirect:/admin/hotels/users/" + id + "/details";
+            }
+
+            userService.deleteUser(id);
+            redirectAttributes.addFlashAttribute("message", "Użytkownik został usunięty");
+            return "redirect:/admin/hotels/users";
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd usuwania użytkownika: " + e.getMessage());
+            return "redirect:/admin/hotels/users/" + id + "/details";
+        }
+    }
+
 
 
 

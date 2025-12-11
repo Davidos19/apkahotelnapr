@@ -1,16 +1,10 @@
+
 package org.example.apkahotels.controllers;
 
-import jakarta.validation.Valid;
 import org.example.apkahotels.models.*;
-import org.example.apkahotels.services.HotelService;
-import org.example.apkahotels.services.ReservationService;
-import org.example.apkahotels.services.RoomService;
-import org.example.apkahotels.services.UserService;
+import org.example.apkahotels.services.*;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -19,27 +13,26 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import jakarta.validation.Valid;
 import java.security.Principal;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Controller
 public class ProfileController {
 
-    private final InMemoryUserDetailsManager inMemoryUserDetailsManager;
+    // ✅ USUŃ InMemoryUserDetailsManager!
     private final PasswordEncoder passwordEncoder;
     private final UserService userService;
     private final ReservationService reservationService;
     private final HotelService hotelService;
     private final RoomService roomService;
 
-
-    public ProfileController(InMemoryUserDetailsManager inMemoryUserDetailsManager,
-                             PasswordEncoder passwordEncoder,
+    // ✅ NOWY KONSTRUKTOR BEZ InMemoryUserDetailsManager
+    public ProfileController(PasswordEncoder passwordEncoder,
                              UserService userService,
-                             ReservationService reservationService,HotelService hotelService,RoomService roomService) {
-        this.inMemoryUserDetailsManager = inMemoryUserDetailsManager;
+                             ReservationService reservationService,
+                             HotelService hotelService,
+                             RoomService roomService) {
         this.passwordEncoder = passwordEncoder;
         this.userService = userService;
         this.reservationService = reservationService;
@@ -104,7 +97,7 @@ public class ProfileController {
         }
     }
 
-    // Zmiana hasła
+    // ✅ NOWA ZMIANA HASŁA - PRZEZ BAZĘ DANYCH!
     @PostMapping("/profile/update")
     public String updatePassword(@ModelAttribute("passwordUpdateForm") @Valid PasswordUpdateForm form,
                                  BindingResult bindingResult,
@@ -112,22 +105,38 @@ public class ProfileController {
         if (bindingResult.hasErrors()) {
             return "profile";
         }
+
         if (!form.getNewPassword().equals(form.getConfirmPassword())) {
             redirectAttributes.addFlashAttribute("error", "Nowe hasło i potwierdzenie nie są zgodne!");
             return "redirect:/profile";
         }
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        UserDetails user = inMemoryUserDetailsManager.loadUserByUsername(username);
-        if (!passwordEncoder.matches(form.getOldPassword(), user.getPassword())) {
-            redirectAttributes.addFlashAttribute("error", "Stare hasło jest nieprawidłowe!");
+
+        try {
+            // ✅ POBIERZ UŻYTKOWNIKA Z BAZY DANYCH
+            AppUser currentUser = userService.getCurrentUser();
+            if (currentUser == null) {
+                redirectAttributes.addFlashAttribute("error", "Nie można znaleźć użytkownika!");
+                return "redirect:/profile";
+            }
+
+            // ✅ SPRAWDŹ STARE HASŁO
+            if (!passwordEncoder.matches(form.getOldPassword(), currentUser.getPassword())) {
+                redirectAttributes.addFlashAttribute("error", "Stare hasło jest nieprawidłowe!");
+                return "redirect:/profile";
+            }
+
+            // ✅ ZAKODUJ I ZAPISZ NOWE HASŁO W BAZIE
+            String encodedNewPassword = passwordEncoder.encode(form.getNewPassword());
+            currentUser.setPassword(encodedNewPassword);
+            userService.updateUser(currentUser);
+
+            redirectAttributes.addFlashAttribute("message", "Hasło zostało zmienione!");
+            return "redirect:/profile";
+
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd przy zmianie hasła: " + e.getMessage());
             return "redirect:/profile";
         }
-        UserDetails updatedUser = User.withUserDetails(user)
-                .password(passwordEncoder.encode(form.getNewPassword()))
-                .build();
-        inMemoryUserDetailsManager.updateUser(updatedUser);
-        redirectAttributes.addFlashAttribute("message", "Hasło zostało zmienione!");
-        return "redirect:/profile";
     }
 
     // Formularz edycji profilu – przykładowo, edycja danych takich jak email, imię, nazwisko
@@ -141,11 +150,13 @@ public class ProfileController {
     // Zapis edytowanego profilu
     @PostMapping("/profile/save")
     public String saveProfile(@ModelAttribute("user") AppUser user, RedirectAttributes redirectAttributes) {
-        // W InMemoryUserDetailsManager dane są przechowywane tylko w pamięci. W przypadku bazy danych
-        // należałoby zapisać zmodyfikowanego użytkownika, np. userService.saveUser(user);
-        // Tutaj możesz zaktualizować dane w pamięci lub po prostu potwierdzić zmiany
-        userService.updateUser(user);
-        redirectAttributes.addFlashAttribute("message", "Profil został zaktualizowany.");
+        try {
+            // ✅ ZAPISZ W BAZIE DANYCH
+            userService.updateUser(user);
+            redirectAttributes.addFlashAttribute("message", "Profil został zaktualizowany.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd przy zapisywaniu profilu: " + e.getMessage());
+        }
         return "redirect:/profile";
     }
 

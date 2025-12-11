@@ -4,148 +4,293 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Zarządzanie Użytkownikami - Admin</title>
+  <title>Zarządzanie Użytkownikami</title>
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+  <link rel="stylesheet" href="/css/custom.css">
 </head>
 <body>
 <div th:replace="~{fragments/nav :: nav}"></div>
 
 <div class="container mt-4">
-  <h1>👥 Zarządzanie Użytkownikami</h1>
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/admin/hotels/dashboard">Dashboard</a></li>
+      <li class="breadcrumb-item active">👥 Użytkownicy</li>
+    </ol>
+  </nav>
 
-  <!-- Wiadomości -->
+  <!-- Alerty -->
   <div th:if="${message}" class="alert alert-success alert-dismissible fade show" role="alert">
     <span th:text="${message}"></span>
-    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
-
   <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
     <span th:text="${error}"></span>
-    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   </div>
 
-  <!-- Sprawdzenie czy users istnieje -->
-  <div th:if="${users == null}">
-    <div class="alert alert-warning">Brak danych użytkowników.</div>
-  </div>
-
-  <div th:if="${users != null}">
-    <!-- Statystyki -->
-    <div class="row mb-4">
-      <div class="col-md-3">
-        <div class="card bg-primary text-white">
-          <div class="card-body text-center">
-            <h5>Wszyscy użytkownicy</h5>
-            <h2 th:text="${#lists.size(users)}">0</h2>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card bg-success text-white">
-          <div class="card-body text-center">
-            <h5>Aktywni</h5>
-            <h2>-</h2>
-          </div>
+  <!-- Statystyki - POPRAWIONE WYRAŻENIA -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body text-center">
+          <h5>👥 Wszyscy użytkownicy</h5>
+          <h2 th:text="${#lists.size(users) ?: 0}">0</h2>
         </div>
       </div>
     </div>
-
-    <!-- Lista użytkowników -->
-    <div class="card">
-      <div class="card-header">
-        <h3>Lista użytkowników</h3>
-      </div>
-      <div class="card-body">
-        <div th:if="${#lists.isEmpty(users)}" class="alert alert-info">
-          Brak użytkowników w systemie.
+    <div class="col-md-3">
+      <div class="card bg-success text-white">
+        <div class="card-body text-center">
+          <h5>✅ Aktywni</h5>
+          <!-- ✅ POPRAWIONA SKŁADNIA -->
+          <h2 th:text="${users != null ? #lists.size(users.?[active]) : 0}">0</h2>
         </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-warning text-white">
+        <div class="card-body text-center">
+          <h5>👑 Administratorzy</h5>
+          <!-- ✅ POPRAWIONA SKŁADNIA -->
+          <h2 th:text="${users != null ? #lists.size(users.?[role != null and role.name() == 'ADMIN']) : 0}">0</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-info text-white">
+        <div class="card-body text-center">
+          <h5>👤 Zwykli użytkownicy</h5>
+          <!-- ✅ POPRAWIONA SKŁADNIA -->
+          <h2 th:text="${users != null ? #lists.size(users.?[role != null and role.name() == 'USER']) : 0}">0</h2>
+        </div>
+      </div>
+    </div>
+  </div>
 
-        <div th:if="${!#lists.isEmpty(users)}">
-          <div class="table-responsive">
-            <table class="table table-striped">
-              <thead>
-              <tr>
-                <th>ID</th>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Rola</th>
-                <th>Status</th>
-                <th>Akcje</th>
-              </tr>
-              </thead>
-              <tbody>
-              <tr th:each="user : ${users}">
-                <td th:text="${user.id}">1</td>
-                <td th:text="${user.username}">username</td>
-                <td th:text="${user.email}">email@example.com</td>
-                <td>
-                                        <span th:if="${user.role != null}"
-                                              class="badge badge-primary"
-                                              th:text="${user.role.description}">Rola</span>
-                  <span th:if="${user.role == null}"
-                        class="badge badge-secondary">Brak roli</span>
-                </td>
-                <td>
-                                        <span class="badge"
-                                              th:classappend="${user.active} ? 'badge-success' : 'badge-danger'"
-                                              th:text="${user.active} ? 'Aktywny' : 'Nieaktywny'">Status</span>
-                </td>
-                <td>
-                  <div class="btn-group" role="group">
-                    <!-- Zmiana roli -->
-                    <div class="dropdown">
-                      <button class="btn btn-sm btn-outline-primary dropdown-toggle"
-                              type="button" data-toggle="dropdown">
-                        Rola
-                      </button>
-                      <div class="dropdown-menu">
-                        <form th:each="role : ${userRoles}"
-                              th:action="@{/admin/hotels/users/{id}/role(id=${user.id})}"
-                              method="post" style="display: inline;">
-                          <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+  <!-- Wyszukiwanie -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" th:action="@{/admin/hotels/users}">
+        <div class="row">
+          <div class="col-md-10">
+            <input type="text" name="search" class="form-control"
+                   placeholder="🔍 Wyszukaj użytkownika (username, email, imię, nazwisko)..."
+                   th:value="${param.search}">
+          </div>
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">Szukaj</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lista użytkowników -->
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5>📋 Lista użytkowników (<span th:text="${#lists.size(users) ?: 0}">0</span>)</h5>
+    </div>
+    <div class="card-body">
+      <div th:if="${users == null or #lists.isEmpty(users)}" class="text-center py-4">
+        <p class="text-muted">Brak użytkowników do wyświetlenia</p>
+      </div>
+
+      <div th:unless="${users == null or #lists.isEmpty(users)}" class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+          <tr>
+            <th>👤 Użytkownik</th>
+            <th>📧 Email</th>
+            <th>🏷️ Rola</th>
+            <th>📊 Status</th>
+            <th>📅 Utworzony</th>
+            <th width="300px">⚡ Akcje</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="user : ${users}">
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center me-2"
+                     style="width: 40px; height: 40px;">
+                  <span class="text-white fw-bold" th:text="${user.firstName?.charAt(0)?.toString()?.toUpperCase() ?: '?'}">U</span>
+                </div>
+                <div>
+                  <strong th:text="${user.username}">username</strong><br>
+                  <small class="text-muted" th:text="${user.firstName + ' ' + user.lastName}">Imię Nazwisko</small>
+                </div>
+              </div>
+            </td>
+            <td th:text="${user.email}">email@example.com</td>
+            <td>
+              <span class="badge"
+                    th:classappend="${user.role?.name() == 'ADMIN'} ? 'bg-warning' : 'bg-info'"
+                    th:text="${user.role?.description ?: 'Brak roli'}">Rola</span>
+            </td>
+            <td>
+              <span class="badge"
+                    th:classappend="${user.active} ? 'bg-success' : 'bg-danger'"
+                    th:text="${user.active} ? '✅ Aktywny' : '❌ Nieaktywny'">Status</span>
+            </td>
+            <td>
+              <small th:text="${user.createdAt ?: 'Brak daty'}">2024-01-01</small>
+            </td>
+            <td>
+              <div class="btn-group-vertical btn-group-sm d-grid gap-1">
+                <!-- GŁÓWNY PRZYCISK: Zobacz szczegóły -->
+                <a th:href="@{/admin/hotels/users/{id}/details(id=${user.id})}"
+                   class="btn btn-primary btn-sm">
+                  🔍 Zobacz szczegóły i rezerwacje
+                </a>
+
+                <!-- Pozostałe akcje w jednej linii -->
+                <div class="btn-group btn-group-sm">
+                  <!-- Zmiana roli -->
+                  <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle btn-sm"
+                            type="button" data-bs-toggle="dropdown">
+                      🏷️ Rola
+                    </button>
+                    <ul class="dropdown-menu">
+                      <li th:each="role : ${userRoles}">
+                        <form th:action="@{/admin/hotels/users/{id}/role(id=${user.id})}"
+                              method="post" class="d-inline">
                           <input type="hidden" name="newRole" th:value="${role}"/>
                           <button type="submit" class="dropdown-item"
                                   th:text="${role.description}">Rola</button>
                         </form>
-                      </div>
-                    </div>
-
-                    <!-- Toggle aktywności -->
-                    <form th:action="@{/admin/hotels/users/{id}/toggle-active(id=${user.id})}"
-                          method="post" style="display: inline;">
-                      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-                      <button type="submit" class="btn btn-sm"
-                              th:classappend="${user.active} ? 'btn-outline-danger' : 'btn-outline-success'"
-                              th:text="${user.active} ? 'Deaktywuj' : 'Aktywuj'">Toggle</button>
-                    </form>
-
-                    <!-- Reset hasła -->
-                    <form th:action="@{/admin/hotels/users/{id}/reset-password(id=${user.id})}"
-                          method="post" style="display: inline;">
-                      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-                      <button type="submit" class="btn btn-sm btn-outline-warning"
-                              onclick="return confirm('Czy na pewno chcesz zresetować hasło?')">
-                        Reset hasła
-                      </button>
-                    </form>
+                      </li>
+                    </ul>
                   </div>
-                </td>
-              </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+
+                  <!-- Aktywuj/Dezaktywuj -->
+                  <form th:action="@{/admin/hotels/users/{id}/toggle-active(id=${user.id})}"
+                        method="post" class="d-inline">
+                    <button type="submit" class="btn btn-sm"
+                            th:classappend="${user.active} ? 'btn-outline-warning' : 'btn-outline-success'">
+                      <span th:if="${user.active}">⚠️</span>
+                      <span th:unless="${user.active}">✅</span>
+                    </button>
+                  </form>
+
+                  <!-- ✅ POPRAWIONY PRZYCISK RESET HASŁA - OTWIERA MODAL -->
+                  <button type="button" class="btn btn-outline-danger btn-sm"
+                          th:data-user-id="${user.id}"
+                          th:data-username="${user.username}"
+                          data-bs-toggle="modal"
+                          data-bs-target="#resetPasswordModal"
+                          title="Reset hasła">
+                    🔑
+                  </button>
+                </div>
+              </div>
+            </td>
+          </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
 
-  <!-- Powrót do dashboardu -->
+  <!-- Nawigacja -->
   <div class="mt-4">
     <a href="/admin/hotels/dashboard" class="btn btn-secondary">← Powrót do dashboardu</a>
   </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="resetPasswordForm" method="post">
+        <!-- ✅ DODAJ CSRF TOKEN -->
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
+        <div class="modal-header">
+          <h5 class="modal-title" id="resetPasswordModalLabel">
+            🔑 Reset hasła dla: <strong id="modalUsername"></strong>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning">
+            <strong>⚠️ Uwaga!</strong> Użytkownik zostanie poinformowany o zmianie hasła.
+          </div>
+
+          <div class="mb-3">
+            <label for="newPassword" class="form-label">Nowe hasło</label>
+            <input type="password" class="form-control" id="newPassword" name="newPassword"
+                   required minlength="6" placeholder="Wprowadź nowe hasło (min. 6 znaków)">
+            <div class="form-text">Hasło powinno mieć minimum 6 znaków.</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="confirmPassword" class="form-label">Potwierdź hasło</label>
+            <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
+                   required minlength="6" placeholder="Powtórz hasło">
+            <div id="passwordError" class="text-danger" style="display: none;">Hasła nie są identyczne!</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">❌ Anuluj</button>
+          <button type="submit" class="btn btn-danger" id="resetPasswordBtn">🔑 Zresetuj hasło</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const newPassword = document.getElementById('newPassword');
+    const confirmPassword = document.getElementById('confirmPassword');
+    const passwordError = document.getElementById('passwordError');
+    const resetBtn = document.getElementById('resetPasswordBtn');
+    const resetForm = document.getElementById('resetPasswordForm');
+    const modalUsername = document.getElementById('modalUsername');
+
+    // ✅ USTAW DANE UŻYTKOWNIKA PRZY OTWIERANIU MODALA
+    const resetPasswordModal = document.getElementById('resetPasswordModal');
+    resetPasswordModal.addEventListener('show.bs.modal', function (event) {
+      const button = event.relatedTarget; // Przycisk który otworzył modal
+      const userId = button.getAttribute('data-user-id');
+      const username = button.getAttribute('data-username');
+
+      // Ustaw action formularza
+      resetForm.action = `/admin/hotels/users/${userId}/reset-password`;
+      modalUsername.textContent = username;
+
+      // Wyczyść pola
+      newPassword.value = '';
+      confirmPassword.value = '';
+      passwordError.style.display = 'none';
+      confirmPassword.classList.remove('is-invalid', 'is-valid');
+      resetBtn.disabled = false;
+    });
+
+    function validatePasswords() {
+      if (newPassword.value && confirmPassword.value) {
+        if (newPassword.value !== confirmPassword.value) {
+          passwordError.style.display = 'block';
+          confirmPassword.classList.add('is-invalid');
+          resetBtn.disabled = true;
+        } else {
+          passwordError.style.display = 'none';
+          confirmPassword.classList.remove('is-invalid');
+          confirmPassword.classList.add('is-valid');
+          resetBtn.disabled = false;
+        }
+      }
+    }
+
+    newPassword.addEventListener('input', validatePasswords);
+    confirmPassword.addEventListener('input', validatePasswords);
+  });
+</script>
+
 </body>
 </html>

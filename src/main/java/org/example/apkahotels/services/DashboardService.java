@@ -1,19 +1,14 @@
+
 package org.example.apkahotels.services;
 
-import org.example.apkahotels.models.Hotel;
-import org.example.apkahotels.models.Reservation;
-import org.example.apkahotels.models.Room;
-import org.example.apkahotels.repositories.HotelRepository;
-import org.example.apkahotels.repositories.ReservationRepository;
-import org.example.apkahotels.repositories.RoomRepository;
+import org.example.apkahotels.models.*;
+import org.example.apkahotels.repositories.*;
 import org.springframework.stereotype.Service;
-
+import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Set;
 
 @Service
 public class DashboardService {
@@ -30,115 +25,239 @@ public class DashboardService {
         this.roomRepository = roomRepository;
     }
 
-    // ===== DODAJ TĘ METODĘ - brakujący getDashboardStats =====
-    public Map<String, Object> getDashboardStats() {
+    // ✅ ZAAWANSOWANY DASHBOARD
+    public Map<String, Object> getAdvancedDashboardStats() {
         Map<String, Object> stats = new HashMap<>();
 
-        // Liczba wszystkich hoteli
-        stats.put("totalHotels", hotelRepository.count());
+        try {
+            // 📊 PODSTAWOWE STATYSTYKI
+            List<Hotel> allHotels = hotelRepository.findAll();
+            List<Reservation> allReservations = reservationRepository.findAll();
 
-        // Liczba wszystkich rezerwacji
-        stats.put("totalReservations", reservationRepository.count());
+            stats.put("totalHotels", allHotels.size());
+            stats.put("totalReservations", allReservations.size());
+            stats.put("totalRooms", roomRepository.findAll().size());
 
-        // Liczba wszystkich pokoi
-        stats.put("totalRooms", roomRepository.count());
+            // 💰 PRZYCHODY (POPRAWIONE TYPY!)
+            Double totalRevenue = calculateTotalRevenue();
+            Double monthRevenue = calculateMonthlyRevenue();
+            Double todayRevenue = calculateTodayRevenue();
 
-        // Dostępne pokoje (wszystkie pokoje - można rozszerzyć o logikę dostępności)
-        stats.put("totalAvailableRooms", roomRepository.count());
+            stats.put("totalRevenue", totalRevenue);
+            stats.put("monthRevenue", monthRevenue);
+            stats.put("todayRevenue", todayRevenue);
 
-        // Rezerwacje dzisiaj
-        long todayReservations = reservationRepository.findAll()
-                .stream()
-                .filter(r -> r.getCheckIn().equals(LocalDate.now()))
-                .count();
-        stats.put("todayReservations", todayReservations);
+            // 📅 REZERWACJE WEDŁUG OKRESÓW
+            LocalDate today = LocalDate.now();
+            long todayReservations = allReservations.stream()
+                    .filter(r -> r.getCheckIn().equals(today))
+                    .count();
 
-        // Rezerwacje w tym miesiącu
-        LocalDate startOfMonth = LocalDate.now().withDayOfMonth(1);
-        LocalDate endOfMonth = LocalDate.now().withDayOfMonth(LocalDate.now().lengthOfMonth());
-        long thisMonthReservations = reservationRepository.findAll()
-                .stream()
-                .filter(r -> !r.getCheckIn().isBefore(startOfMonth) && !r.getCheckIn().isAfter(endOfMonth))
-                .count();
-        stats.put("thisMonthReservations", thisMonthReservations);
+            long thisWeekReservations = allReservations.stream()
+                    .filter(r -> r.getCheckIn().isAfter(today.minusDays(7)) &&
+                            r.getCheckIn().isBefore(today.plusDays(1)))
+                    .count();
+
+            stats.put("todayReservations", todayReservations);
+            stats.put("thisWeekReservations", thisWeekReservations);
+
+            // 📈 WYKRES OBŁOŻENIA (7 dni do przodu)
+            Map<String, Double> occupancyChart = getOccupancyChartData();
+            stats.put("occupancyChart", occupancyChart);
+
+            // 🏆 TOP 5 HOTELI
+            List<Map<String, Object>> topHotels = getTopHotels(5);
+            stats.put("topHotels", topHotels);
+
+            // 🔔 ALERTY
+            List<String> alerts = generateAlerts();
+            stats.put("alerts", alerts);
+
+            // 📊 STATYSTYKI POKOI
+            Map<String, Long> roomStats = getRoomTypeStats();
+            stats.put("roomStats", roomStats);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            // Zwróć podstawowe statystyki w razie błędu
+            stats.put("error", "Błąd pobierania zaawansowanych statystyk: " + e.getMessage());
+        }
 
         return stats;
     }
 
-    public List<Hotel> getHotelsWithAvailableRooms() {
-        List<Hotel> allHotels = hotelRepository.findAll();
+    // 💰 OBLICZANIE PRZYCHODÓW (POPRAWIONE!)
+    private Double calculateTotalRevenue() {
+        return reservationRepository.findAll().stream()
+                .filter(r -> r.getTotalPrice() != null)
+                .mapToDouble(r -> r.getTotalPrice()) // ✅ mapToDouble zamiast map
+                .sum(); // ✅ sum() zamiast reduce
+    }
 
-        // Dla każdego hotelu sprawdź czy ma pokoje
-        return allHotels.stream()
-                .filter(hotel -> {
-                    List<Room> hotelRooms = roomRepository.findByHotelId(hotel.getId());
-                    return !hotelRooms.isEmpty(); // hotel ma pokoje
+    private Double calculateMonthlyRevenue() {
+        LocalDate startOfMonth = LocalDate.now().withDayOfMonth(1);
+        return reservationRepository.findAll().stream()
+                .filter(r -> r.getCheckIn().isAfter(startOfMonth.minusDays(1)))
+                .filter(r -> r.getTotalPrice() != null)
+                .mapToDouble(r -> r.getTotalPrice()) // ✅ mapToDouble
+                .sum(); // ✅ sum()
+    }
+
+    private Double calculateTodayRevenue() {
+        LocalDate today = LocalDate.now();
+        return reservationRepository.findAll().stream()
+                .filter(r -> r.getCheckIn().equals(today))
+                .filter(r -> r.getTotalPrice() != null)
+                .mapToDouble(r -> r.getTotalPrice()) // ✅ mapToDouble
+                .sum(); // ✅ sum()
+    }
+
+    // 📈 WYKRES OBŁOŻENIA
+    private Map<String, Double> getOccupancyChartData() {
+        Map<String, Double> occupancyData = new LinkedHashMap<>();
+        LocalDate today = LocalDate.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM");
+
+        for (int i = 0; i < 7; i++) {
+            LocalDate date = today.plusDays(i);
+            double occupancy = calculateOccupancyForDate(date);
+            occupancyData.put(date.format(formatter), occupancy);
+        }
+
+        return occupancyData;
+    }
+
+    private double calculateOccupancyForDate(LocalDate date) {
+        List<Room> allRooms = roomRepository.findAll();
+        if (allRooms.isEmpty()) return 0.0;
+
+        long occupiedRooms = reservationRepository.findAll().stream()
+                .filter(r -> !date.isBefore(r.getCheckIn()) && date.isBefore(r.getCheckOut()))
+                .count();
+
+        return (double) occupiedRooms / allRooms.size() * 100;
+    }
+
+    // 🏆 TOP HOTELE
+    private List<Map<String, Object>> getTopHotels(int limit) {
+        Map<Long, Long> hotelReservationCounts = reservationRepository.findAll().stream()
+                .filter(r -> r.getHotelId() != null)
+                .collect(Collectors.groupingBy(
+                        Reservation::getHotelId,
+                        Collectors.counting()
+                ));
+
+        return hotelReservationCounts.entrySet().stream()
+                .sorted(Map.Entry.<Long, Long>comparingByValue().reversed())
+                .limit(limit)
+                .map(entry -> {
+                    Map<String, Object> hotelData = new HashMap<>();
+                    Hotel hotel = hotelRepository.findById(entry.getKey()).orElse(null);
+                    hotelData.put("hotel", hotel);
+                    hotelData.put("reservationCount", entry.getValue());
+
+                    // Oblicz przychód z tego hotelu (POPRAWIONY!)
+                    Double hotelRevenue = reservationRepository.findAll().stream()
+                            .filter(r -> r.getHotelId() != null && r.getHotelId().equals(entry.getKey()))
+                            .filter(r -> r.getTotalPrice() != null)
+                            .mapToDouble(r -> r.getTotalPrice()) // ✅ mapToDouble
+                            .sum(); // ✅ sum()
+                    hotelData.put("revenue", hotelRevenue);
+
+                    return hotelData;
                 })
                 .collect(Collectors.toList());
     }
 
+    // 🔔 GENERUJ ALERTY
+    private List<String> generateAlerts() {
+        List<String> alerts = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+
+        // Alert o zaległych check-outach
+        long overdueCheckouts = reservationRepository.findAll().stream()
+                .filter(r -> r.getCheckOut().isBefore(today))
+                .count();
+        if (overdueCheckouts > 0) {
+            alerts.add("⚠️ " + overdueCheckouts + " zaległych check-outów");
+        }
+
+        // Alert o dzisiejszych check-inach
+        long todayCheckins = reservationRepository.findAll().stream()
+                .filter(r -> r.getCheckIn().equals(today))
+                .count();
+        if (todayCheckins > 0) {
+            alerts.add("📅 " + todayCheckins + " check-inów dzisiaj");
+        }
+
+        // Alert o wysokim obłożeniu
+        double todayOccupancy = calculateOccupancyForDate(today);
+        if (todayOccupancy > 90) {
+            alerts.add("🏨 Wysokie obłożenie dzisiaj: " + String.format("%.1f%%", todayOccupancy));
+        }
+
+        // Alert o niskim obłożeniu
+        if (todayOccupancy < 20) {
+            alerts.add("📉 Niskie obłożenie dzisiaj: " + String.format("%.1f%%", todayOccupancy));
+        }
+
+        return alerts;
+    }
+
+    // 📊 STATYSTYKI TYPÓW POKOI
+    private Map<String, Long> getRoomTypeStats() {
+        return roomRepository.findAll().stream()
+                .collect(Collectors.groupingBy(
+                        room -> room.getRoomType() != null ? room.getRoomType() : "Nieokreślony",
+                        Collectors.counting()
+                ));
+    }
+
+    // ===== STARE METODY (zachowujemy dla kompatybilności) =====
+    public Map<String, Object> getDashboardStats() {
+        return getAdvancedDashboardStats();
+    }
+
+    public List<Hotel> getHotelsWithAvailableRooms() {
+        return hotelRepository.findAll().stream()
+                .filter(hotel -> getAvailableRoomsCount(hotel.getId()) > 0)
+                .collect(Collectors.toList());
+    }
+
     public int getAvailableRoomsCount(Long hotelId) {
-        return roomRepository.findByHotelId(hotelId).size();
+        List<Room> hotelRooms = roomRepository.findAll().stream()
+                .filter(room -> room.getHotelId() != null && room.getHotelId().equals(hotelId))
+                .collect(Collectors.toList());
+        return hotelRooms.size();
     }
 
     public List<Reservation> getRecentReservations(int limit) {
-        return reservationRepository.findAll()
-                .stream()
+        return reservationRepository.findAll().stream()
                 .sorted((r1, r2) -> r2.getCheckIn().compareTo(r1.getCheckIn()))
                 .limit(limit)
                 .collect(Collectors.toList());
     }
 
     public Map<String, Long> getReservationStats() {
-        long totalReservations = reservationRepository.count();
-        long todayReservations = reservationRepository.findAll()
-                .stream()
-                .filter(r -> r.getCheckIn().equals(LocalDate.now()))
-                .count();
+        List<Reservation> allReservations = reservationRepository.findAll();
+        Map<String, Long> stats = new HashMap<>();
 
-        return Map.of(
-                "total", totalReservations,
-                "today", todayReservations
-        );
+        LocalDate today = LocalDate.now();
+        stats.put("total", (long) allReservations.size());
+        stats.put("today", allReservations.stream()
+                .filter(r -> r.getCheckIn().equals(today))
+                .count());
+        stats.put("thisWeek", allReservations.stream()
+                .filter(r -> r.getCheckIn().isAfter(today.minusDays(7)))
+                .count());
+
+        return stats;
     }
 
     public List<Hotel> getPopularHotels(int limit) {
-        // Najpopularniejsze hotele na podstawie liczby rezerwacji
-        Map<Long, Long> hotelReservationCount = reservationRepository.findAll()
-                .stream()
-                .collect(Collectors.groupingBy(
-                        Reservation::getHotelId,
-                        Collectors.counting()
-                ));
-
-        return hotelRepository.findAll()
-                .stream()
-                .sorted((h1, h2) -> {
-                    long count1 = hotelReservationCount.getOrDefault(h1.getId(), 0L);
-                    long count2 = hotelReservationCount.getOrDefault(h2.getId(), 0L);
-                    return Long.compare(count2, count1); // sortowanie malejące
-                })
-                .limit(limit)
+        return getTopHotels(limit).stream()
+                .map(data -> (Hotel) data.get("hotel"))
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
-    }
-
-    // ===== DODATKOWE METODY DLA ROZSZERZENIA DASHBOARDU =====
-
-    public Map<String, Object> getDetailedStats() {
-        Map<String, Object> stats = new HashMap<>();
-
-        // Podstawowe statystyki
-        stats.putAll(getDashboardStats());
-
-        // Najpopularniejsze hotele (top 5)
-        stats.put("popularHotels", getPopularHotels(5));
-
-        // Ostatnie rezerwacje (10)
-        stats.put("recentReservations", getRecentReservations(10));
-
-        // Hotele z dostępnymi pokojami
-        stats.put("hotelsWithRooms", getHotelsWithAvailableRooms());
-
-        return stats;
     }
 }

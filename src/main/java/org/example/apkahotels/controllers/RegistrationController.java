@@ -3,13 +3,10 @@ package org.example.apkahotels.controllers;
 import jakarta.validation.Valid;
 import org.example.apkahotels.models.AppUser;
 import org.example.apkahotels.models.RegistrationForm;
-import org.example.apkahotels.repositories.AppUserRepository;
+import org.example.apkahotels.models.UserRole;
+import org.example.apkahotels.repositories.UserRepository;
 import org.example.apkahotels.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -20,18 +17,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 @Controller
 public class RegistrationController {
 
-    private final InMemoryUserDetailsManager userDetailsManager;
-    private final PasswordEncoder passwordEncoder;
-    private final AppUserRepository userRepo;
-    private final UserService userService;    // ← dołóż
+    private final UserRepository userRepository;
+    private final UserService userService;
 
     @Autowired
-    public RegistrationController(InMemoryUserDetailsManager udm, PasswordEncoder passwordEncoder, AppUserRepository userRepo, UserService userService) {
-        this.userDetailsManager  = udm;
-        this.passwordEncoder = passwordEncoder;
-        this.userRepo           = userRepo;
-        this.userService= userService;
-
+    public RegistrationController(UserRepository userRepository, UserService userService) {
+        this.userRepository = userRepository;
+        this.userService = userService;
     }
 
     @GetMapping("/register")
@@ -54,9 +46,14 @@ public class RegistrationController {
             return "register";
         }
 
-        // Sprawdź czy użytkownik już istnieje (wystarczy jedna z metod)
-        if (userDetailsManager.userExists(form.getUsername())) {
+        // Sprawdź w bazie danych
+        if (userRepository.existsByUsername(form.getUsername())) {
             model.addAttribute("error", "Użytkownik o tej nazwie już istnieje");
+            return "register";
+        }
+
+        if (userRepository.existsByEmail(form.getEmail())) {
+            model.addAttribute("error", "Email już jest używany");
             return "register";
         }
 
@@ -71,15 +68,20 @@ public class RegistrationController {
             newUser.setPhoneNumber(form.getPhoneNumber());
             newUser.setProfileImageUrl(null);
 
-            // Zarejestruj użytkownika (UserService zajmie się kodowaniem hasła i dodaniem do Spring Security)
+            // ✅ POPRAWKA: CLIENT zamiast USER!
+            newUser.setRole(UserRole.CLIENT);
+            newUser.setActive(true);
+
+            // Zarejestruj użytkownika przez UserService
             userService.registerUser(newUser);
 
             return "redirect:/login?registered=true";
 
         } catch (Exception e) {
+            System.err.println("Błąd rejestracji: " + e.getMessage());
+            e.printStackTrace();
             model.addAttribute("error", "Błąd rejestracji: " + e.getMessage());
             return "register";
         }
     }
-
 }
