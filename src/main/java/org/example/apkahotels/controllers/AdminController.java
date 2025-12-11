@@ -482,6 +482,54 @@ public class AdminController {
         return "redirect:/admin/hotels/" + hotelId + "/reservations";
     }
 
+    @GetMapping("/{hotelId}/reservations/{reservationId}/edit")
+    public String editHotelReservation(@PathVariable Long hotelId,
+                                       @PathVariable Long reservationId,
+                                       Model model) {
+        try {
+            Hotel hotel = hotelService.getHotelById(hotelId);
+            Reservation reservation = reservationService.getReservationById(reservationId);
+
+            if (hotel == null || reservation == null) {
+                return "redirect:/admin/hotels/" + hotelId + "/reservations";
+            }
+
+            List<Room> availableRooms = roomService.getRoomsByHotelId(hotelId);
+
+            model.addAttribute("hotel", hotel);
+            model.addAttribute("reservation", reservation);
+            model.addAttribute("availableRooms", availableRooms);
+
+            return "admin_edit_reservation";  // Template do edycji
+
+        } catch (Exception e) {
+            return "redirect:/admin/hotels/" + hotelId + "/reservations";
+        }
+    }
+
+    // ✅ DODAJ TEŻ METODĘ UPDATE
+    @PostMapping("/{hotelId}/reservations/{reservationId}/update")
+    public String updateHotelReservation(@PathVariable Long hotelId,
+                                         @PathVariable Long reservationId,
+                                         @ModelAttribute Reservation updatedReservation,
+                                         RedirectAttributes redirectAttributes) {
+        try {
+            Reservation existingReservation = reservationService.getReservationById(reservationId);
+            if (existingReservation != null) {
+                // Aktualizuj pola
+                existingReservation.setCheckIn(updatedReservation.getCheckIn());
+                existingReservation.setCheckOut(updatedReservation.getCheckOut());
+                existingReservation.setRoomId(updatedReservation.getRoomId());
+                existingReservation.setTotalPrice(updatedReservation.getTotalPrice());
+
+                reservationService.updateReservation(existingReservation);
+                redirectAttributes.addFlashAttribute("message", "Rezerwacja została zaktualizowana");
+            }
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Błąd aktualizacji: " + e.getMessage());
+        }
+        return "redirect:/admin/hotels/" + hotelId + "/reservations";
+    }
 
     // Usunięcie hotelu
     @GetMapping("/delete/{id}")

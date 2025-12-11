@@ -6,12 +6,10 @@ import org.example.apkahotels.models.Hotel;
 import org.example.apkahotels.models.Reservation;
 import org.example.apkahotels.models.Review;
 import org.example.apkahotels.models.Room;
-import org.example.apkahotels.services.HotelService;
-import org.example.apkahotels.services.ReservationService;
-import org.example.apkahotels.services.ReviewService;
-import org.example.apkahotels.services.RoomService;
+import org.example.apkahotels.services.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
@@ -19,7 +17,11 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.example.apkahotels.services.SearchService;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -43,6 +45,62 @@ public class WebController {
         this.roomService = roomService;
 
     }
+    @Autowired
+    private SearchService searchService;
+
+    // ✅ NOWY ENDPOINT WYSZUKIWANIA
+    @GetMapping("/hotels/search")
+    public String searchHotels(@RequestParam(required = false) String keyword,
+                               @RequestParam(required = false) String location,
+                               @RequestParam(required = false) String checkIn,
+                               @RequestParam(required = false) String checkOut,
+                               @RequestParam(required = false) Double minRating,
+                               @RequestParam(required = false) BigDecimal minPrice,
+                               @RequestParam(required = false) BigDecimal maxPrice,
+                               @RequestParam(required = false, defaultValue = "name") String sortBy,
+                               Model model) {
+
+        SearchService.SearchCriteria criteria = new SearchService.SearchCriteria();
+        criteria.setKeyword(keyword);
+        criteria.setLocation(location);
+        criteria.setMinRating(minRating); // ✅ TERAZ DZIAŁA
+        criteria.setMinPrice(minPrice);
+        criteria.setMaxPrice(maxPrice);
+        criteria.setSortBy(sortBy);
+
+        // Parse daty
+        if (checkIn != null && !checkIn.isEmpty()) {
+            try {
+                criteria.setCheckIn(LocalDate.parse(checkIn));
+            } catch (Exception e) {
+                // Ignoruj błędną datę
+            }
+        }
+        if (checkOut != null && !checkOut.isEmpty()) {
+            try {
+                criteria.setCheckOut(LocalDate.parse(checkOut));
+            } catch (Exception e) {
+                // Ignoruj błędną datę
+            }
+        }
+
+        List<Hotel> hotels = searchService.searchHotels(criteria);
+
+        model.addAttribute("hotels", hotels);
+        model.addAttribute("searchCriteria", criteria);
+        model.addAttribute("popularDestinations", searchService.getPopularDestinations());
+        model.addAttribute("bestDeals", searchService.getBestDeals());
+
+        return "hotels"; // Lub "search_results" jeśli utworzysz nowy template
+    }
+
+    // ✅ AUTOCOMPLETE API
+    @GetMapping("/api/locations/suggest")
+    @ResponseBody
+    public List<String> suggestLocations(@RequestParam String query) {
+        return searchService.getLocationSuggestions(query);
+    }
+
 
     @GetMapping("/")
     public String showHomePage(Model model,

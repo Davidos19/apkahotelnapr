@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
@@ -22,9 +23,8 @@
            th:href="@{'/admin/hotels/' + ${hotel.id} + '/reservations/new'}">
             Dodaj rezerwację
         </a>
+    </div>
 
-
-</div>
     <!-- NOWOŚĆ: przycisk toggle i kontener kalendarza -->
     <div class="mb-4">
         <button id="toggleCalendar" class="btn btn-info">Pokaż/Ukryj kalendarz</button>
@@ -50,22 +50,24 @@
             <td th:text="${res.id}"></td>
             <td th:text="${res.username}"></td>
             <td>
-        <span th:if="${roomDetails[res.roomId] != null}">
-          <span th:text="${roomDetails[res.roomId].roomType}">Typ pokoju</span>
-          <br/>
-          <small th:text="'Nr: ' + ${roomDetails[res.roomId].roomNumber}">Nr pokoju</small>
-          <br/>
-          <small th:text="'Pojemność: ' + ${roomDetails[res.roomId].capacity} + ' os.'">Pojemność</small>
-          <br/>
-          <small th:text="'Cena: ' + ${roomDetails[res.roomId].price} + ' PLN'">Cena</small>
-        </span>
+                <span th:if="${roomDetails[res.roomId] != null}">
+                  <span th:text="${roomDetails[res.roomId].roomType}">Typ pokoju</span>
+                  <br/>
+                  <small th:text="'Nr: ' + ${roomDetails[res.roomId].roomNumber}">Nr pokoju</small>
+                  <br/>
+                  <small th:text="'Pojemność: ' + ${roomDetails[res.roomId].capacity} + ' os.'">Pojemność</small>
+                  <br/>
+                  <small th:text="'Cena: ' + ${roomDetails[res.roomId].price} + ' PLN'">Cena</small>
+                </span>
                 <span th:if="${roomDetails[res.roomId] == null}">Brak danych</span>
             </td>
             <td th:text="${res.checkIn}"></td>
             <td th:text="${res.checkOut}"></td>
             <td>
-                <!-- Przycisk Edytuj -->
-                <a th:href="@{/admin/reservations/edit/{id}(id=${res.id})}"
+                <!-- ✅ POPRAWIONY LINK DO EDYCJI -->
+                <a th:href="@{/admin/hotels/{hotelId}/reservations/{reservationId}/edit(
+                     hotelId=${hotel.id}, 
+                     reservationId=${res.id})}"
                    class="btn btn-sm btn-primary mr-1">
                     Edytuj
                 </a>
@@ -128,7 +130,5 @@
         });
     });
 </script>
-</body>
-
 </body>
 </html>

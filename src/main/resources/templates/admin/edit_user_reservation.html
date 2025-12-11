@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Edycja rezerwacji użytkownika</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/custom.css">
+</head>
+<body>
+<div th:replace="~{fragments/nav :: nav}"></div>
+
+<div class="container mt-4">
+    <h1>Edycja rezerwacji użytkownika</h1>
+
+    <!-- Wiadomości -->
+    <div th:if="${message}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <span th:text="${message}"></span>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+
+    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <span th:text="${error}"></span>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Edytuj rezerwację #<span th:text="${reservation.id}">1</span></h4>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/admin/hotels/users/{userId}/reservations/{reservationId}/update(
+                          userId=${user.id}, reservationId=${reservation.id})}"
+                          method="post" th:object="${reservation}">
+
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                        <div class="form-group">
+                            <label for="checkIn">Data przyjazdu:</label>
+                            <input type="date" class="form-control" id="checkIn"
+                                   th:field="*{checkIn}" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="checkOut">Data wyjazdu:</label>
+                            <input type="date" class="form-control" id="checkOut"
+                                   th:field="*{checkOut}" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="roomId">Pokój:</label>
+                            <select class="form-control" id="roomId" th:field="*{roomId}" required>
+                                <option value="">Wybierz pokój</option>
+                                <option th:each="room : ${availableRooms}"
+                                        th:value="${room.id}"
+                                        th:text="${room.roomType + ' - Nr: ' + room.roomNumber + ' (' + room.price + ' PLN)'}">
+                                    Pokój
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="totalPrice">Cena całkowita (PLN):</label>
+                            <input type="number" step="0.01" class="form-control" id="totalPrice"
+                                   th:field="*{totalPrice}" required>
+                        </div>
+
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+                            <a th:href="@{/admin/hotels/users/{id}/details(id=${user.id})}"
+                               class="btn btn-secondary ml-2">Anuluj</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Informacje</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Użytkownik:</strong> <span th:text="${user.username}">user</span></p>
+                    <p><strong>Email:</strong> <span th:text="${user.email}">email</span></p>
+                    <p><strong>Hotel:</strong> <span th:text="${hotel?.name}">Hotel</span></p>
+                    <p><strong>Lokalizacja:</strong> <span th:text="${hotel?.city}">Miasto</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

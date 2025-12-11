@@ -11,15 +11,18 @@ import java.util.List;
 @Repository
 public interface HotelRepository extends JpaRepository<Hotel, Long> {
 
-    List<Hotel> findByNameContainingIgnoreCase(String name);
-
-    List<Hotel> findByCityContainingIgnoreCase(String city);
-
+    // ✅ POPRAWIONE WYSZUKIWANIE - UŻYWA city ZAMIAST location
     @Query("SELECT h FROM Hotel h WHERE " +
             "LOWER(h.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "LOWER(h.city) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "LOWER(h.description) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     List<Hotel> searchByKeyword(@Param("keyword") String keyword);
 
-    List<Hotel> findByStarsGreaterThanEqual(String stars);
+    // ✅ POPRAWIONE WYSZUKIWANIE PO LOKALIZACJI - UŻYWA city
+    @Query("SELECT h FROM Hotel h WHERE LOWER(h.city) LIKE LOWER(CONCAT('%', :location, '%'))")
+    List<Hotel> findByLocationContainingIgnoreCase(@Param("location") String location);
+
+    // ✅ NAJPOPULARNIEJSZE HOTELE
+    @Query("SELECT h FROM Hotel h ORDER BY h.name")
+    List<Hotel> findTopRatedHotels();
 }

@@ -43,4 +43,12 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     @Query("SELECT COUNT(r) FROM Reservation r WHERE r.hotelId = :hotelId")
     long countReservationsByHotelId(@Param("hotelId") Long hotelId);
+    @Query("SELECT r FROM Reservation r WHERE r.roomId = :roomId " +
+            "AND r.checkIn < :checkOut AND r.checkOut > :checkIn")
+    List<Reservation> findByRoomIdAndCheckInBeforeAndCheckOutAfter(
+            @Param("roomId") Long roomId,
+            @Param("checkOut") LocalDate checkOut,
+            @Param("checkIn") LocalDate checkIn
+    );
+
 }
